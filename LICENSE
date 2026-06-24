@@ -1,0 +1,91 @@
+Copyright (c) 2026 Sepio Corp. All rights reserved.
+
+SHIKOLA TIMETABLE CREATOR
+PROPRIETARY SOFTWARE LICENSE
+
+This software and its associated documentation files (the "Software") are
+licensed, not sold. This license grants you a limited, non-exclusive,
+non-transferable right to use the Software under the terms and conditions
+set forth below.
+
+1. GRANT OF LICENSE
+
+   Sepio Corp grants you a perpetual, non-exclusive, non-transferable
+   license to install and use the Software on any number of devices within
+   a single educational institution for the purpose of creating, managing,
+   and exporting school timetables.
+
+2. RESTRICTIONS
+
+   You may NOT:
+   (a) copy, distribute, or sublicense the Software to any third party;
+   (b) modify, adapt, reverse engineer, decompile, or disassemble the
+       Software, except to the extent applicable law prohibits such
+       restrictions;
+   (c) rent, lease, or lend the Software;
+   (d) remove or alter any copyright, trademark, or other proprietary
+       notices on or in the Software;
+   (e) use the Software for any commercial purpose other than educational
+       timetable management without prior written consent from Sepio Corp.
+
+3. INTELLECTUAL PROPERTY
+
+   The Software is and remains the exclusive property of Sepio Corp.
+   All title, ownership rights, and intellectual property rights in and
+   to the Software shall remain with Sepio Corp. The Software is protected
+   by copyright laws and international copyright treaties.
+
+4. DISCLAIMER OF WARRANTY
+
+   THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+   NONINFRINGEMENT. IN NO EVENT SHALL SEPIO CORP BE LIABLE FOR ANY
+   SPECIAL, INDIRECT, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN
+   CONNECTION WITH THE USE OR INABILITY TO USE THE SOFTWARE.
+
+5. DATA PRIVACY AND TELEMETRY
+
+   The Software operates primarily offline. All core data entered into the
+   Software — including school information, teachers, classes, subjects, rooms,
+   and timetables — is stored locally on the user's device.
+
+   The following telemetry features are ENABLED BY DEFAULT. By installing
+   and using the Software, the user consents to the collection of the
+   following data by Sepio Corp:
+
+   (a) Registration Data: school name, phone number, email address, address,
+       and IP address — used to identify which schools use the application
+       and provide better support.
+   (b) Anonymous Analytics: non-identifiable event data (e.g., "timetable
+       generated", "PDF exported"), session ID, app version, and OS info —
+       used to understand which features are most used.
+   (c) Crash Reports: error type, message, stack trace, system information,
+       and IP address — used to diagnose and fix bugs faster.
+
+   Users can disable any or all telemetry features at any time in
+   Settings -> Privacy & Telemetry. Data collected via telemetry is used
+   solely for product improvement, bug fixing, and user support, and is
+   never sold or shared with third parties.
+
+6. TERMINATION
+
+   This license is effective until terminated. You may terminate it at
+   any time by uninstalling and destroying all copies of the Software.
+   Upon termination, you must cease all use of the Software and destroy
+   all copies in your possession.
+
+7. GOVERNING LAW
+
+   This license shall be governed by and construed in accordance with
+   the laws applicable in the jurisdiction where the Software is used,
+   without regard to conflict of law principles.
+
+For licensing inquiries, contact:
+Sepio Corp
+Email: sepiopixel@gmail.com
+
+---
+
+This license is included with every copy of the Software and must accompany
+all authorized distributions.
