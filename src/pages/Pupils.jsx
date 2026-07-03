@@ -1,11 +1,17 @@
-import React, { useState, forwardRef, useImperativeHandle } from 'react'
+import React, { useState, forwardRef, useImperativeHandle, useEffect } from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
-import { Button, Input, Card, PageHeader, Modal, EmptyState, Badge } from '../components/UI.jsx'
+import { Button, Input, Card, PageHeader, Modal, EmptyState, Badge, SkeletonCard } from '../components/UI.jsx'
 import BulkImportModal from '../components/BulkImportModal.jsx'
 
 const Pupils = forwardRef(function Pupils({ embedded, onBack, searchQuery }, ref) {
   const { state, dispatch } = useApp()
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 2000)
+    return () => clearTimeout(timer)
+  }, [])
 
   const filteredPupils = state.pupils.filter(pupil =>
     pupil.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -67,6 +73,22 @@ const Pupils = forwardRef(function Pupils({ embedded, onBack, searchQuery }, ref
     if (!form.classId) return []
     return state.subjects.filter(subject => 
       !subject.classId || subject.classId === form.classId
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-8">
+        {!embedded ? (
+          <PageHeader
+            title="Pupils"
+            subtitle="Loading..."
+          />
+        ) : null}
+        <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      </div>
     )
   }
 

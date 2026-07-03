@@ -1,13 +1,19 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
-import { Button, Input, Select, Card, PageHeader, Modal, EmptyState, Badge, Tabs } from '../components/UI.jsx'
+import { Button, Input, Select, Card, PageHeader, Modal, EmptyState, Badge, Tabs, SkeletonCard } from '../components/UI.jsx'
 import BulkImportModal from '../components/BulkImportModal.jsx'
 import TeacherConstraints from './TeacherConstraints.jsx'
 import Substitutions from './Substitutions.jsx'
 
 export default function ManageTeachers({ navigate, searchQuery }) {
   const { state, dispatch } = useApp()
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 2000)
+    return () => clearTimeout(timer)
+  }, [])
   const [activeTab, setActiveTab] = useState('teachers')
   const substitutionsRef = useRef(null)
   const [modalOpen, setModalOpen] = useState(false)

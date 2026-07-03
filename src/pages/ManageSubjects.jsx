@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
-import { Button, Input, Card, PageHeader, Modal, EmptyState, Tabs } from '../components/UI.jsx'
+import { Button, Input, Card, PageHeader, Modal, EmptyState, Tabs, SkeletonCard } from '../components/UI.jsx'
 import BulkImportModal from '../components/BulkImportModal.jsx'
 import CardRelationships from './CardRelationships.jsx'
 import SubjectAssignments from './SubjectAssignments.jsx'
@@ -18,6 +18,12 @@ const COLORS = [
 
 export default function ManageSubjects({ navigate, searchQuery }) {
   const { state, dispatch } = useApp()
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 2000)
+    return () => clearTimeout(timer)
+  }, [])
 
   const filteredSubjects = state.subjects.filter(subject =>
     subject.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -79,6 +85,20 @@ export default function ManageSubjects({ navigate, searchQuery }) {
       dispatch({ type: 'DELETE_SUBJECT', payload: id })
       sounds.delete()
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-8">
+        <PageHeader
+          title={activeTab === 'relationships' ? 'Card Relationships' : activeTab === 'assignments' ? 'Subject Assignments' : 'Subjects'}
+          subtitle="Loading..."
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      </div>
+    )
   }
 
   return (

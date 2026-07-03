@@ -30,7 +30,7 @@ export default function ViewTimetables({ navigate, searchQuery }) {
   const [pageTab, setPageTab] = useState('view')
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400)
+    const timer = setTimeout(() => setLoading(false), 2000)
     return () => clearTimeout(timer)
   }, [])
 

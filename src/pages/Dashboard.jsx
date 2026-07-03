@@ -8,7 +8,7 @@ export default function Dashboard({ navigate, searchQuery }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 500)
+    const timer = setTimeout(() => setLoading(false), 2000)
     return () => clearTimeout(timer)
   }, [])
 
