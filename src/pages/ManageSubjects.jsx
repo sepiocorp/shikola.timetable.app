@@ -1,37 +1,42 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
-import { Button, Input, Card, PageHeader, Modal, EmptyState } from '../components/UI.jsx'
+import { Button, Input, Card, PageHeader, Modal, EmptyState, Tabs } from '../components/UI.jsx'
 import BulkImportModal from '../components/BulkImportModal.jsx'
+import CardRelationships from './CardRelationships.jsx'
+import SubjectAssignments from './SubjectAssignments.jsx'
 
 const COLORS = [
   { name: 'Blue', value: '#3b82f6' },
   { name: 'Green', value: '#22c55e' },
   { name: 'Red', value: '#ef4444' },
   { name: 'Amber', value: '#f59e0b' },
-  { name: 'Purple', value: '#a855f7' },
   { name: 'Pink', value: '#ec4899' },
   { name: 'Teal', value: '#14b8a6' },
   { name: 'Indigo', value: '#6366f1' },
 ]
 
-export default function ManageSubjects() {
+export default function ManageSubjects({ navigate }) {
   const { state, dispatch } = useApp()
+  const [activeTab, setActiveTab] = useState('subjects')
+  const relationshipsRef = useRef(null)
+  const assignmentsRef = useRef(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ name: '', code: '', color: '#3b82f6', isOptional: false, secondaryClassId: '' })
+  const [form, setForm] = useState({ name: '', code: '', color: '#3b82f6', classId: '', isOptional: false, secondaryClassId: '' })
+  const [viewMode, setViewMode] = useState('list')
 
   const openAdd = () => {
     setEditing(null)
-    setForm({ name: '', code: '', color: '#3b82f6', isOptional: false, secondaryClassId: '' })
+    setForm({ name: '', code: '', color: '#3b82f6', classId: '', isOptional: false, secondaryClassId: '' })
     sounds.click()
     setModalOpen(true)
   }
 
   const openEdit = (subject) => {
     setEditing(subject)
-    setForm({ name: subject.name, code: subject.code || '', color: subject.color || '#3b82f6', isOptional: subject.isOptional || false, secondaryClassId: subject.secondaryClassId || '' })
+    setForm({ name: subject.name, code: subject.code || '', color: subject.color || '#3b82f6', classId: subject.classId || '', isOptional: subject.isOptional || false, secondaryClassId: subject.secondaryClassId || '' })
     sounds.click()
     setModalOpen(true)
   }
@@ -58,17 +63,50 @@ export default function ManageSubjects() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <PageHeader
-        title="Subjects"
-        subtitle={`${state.subjects.length} subject(s) registered`}
+        title={activeTab === 'relationships' ? 'Card Relationships' : activeTab === 'assignments' ? 'Subject Assignments' : 'Subjects'}
+        subtitle={activeTab === 'relationships' ? 'Define rules between subjects (sequencing, distribution, constraints)' : activeTab === 'assignments' ? 'Assign subjects to classes with periods/week limits' : `${state.subjects.length} subject(s) registered`}
         action={
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => { sounds.click(); setBulkOpen(true) }}>Bulk Import</Button>
-            <Button onClick={openAdd}>+ Add Subject</Button>
+            {activeTab === 'subjects' && <>
+              <Button variant="secondary" onClick={() => { sounds.click(); setBulkOpen(true) }}>Bulk Import</Button>
+              <Button onClick={openAdd}>+ Add Subject</Button>
+            </>}
+            {activeTab === 'relationships' && <Button onClick={() => relationshipsRef.current?.openAdd()}>+ Add Rule</Button>}
+            {activeTab === 'assignments' && <Button onClick={() => assignmentsRef.current?.openAdd()} disabled={state.classes.length === 0 || state.subjects.length === 0}>+ Add Assignment</Button>}
           </div>
         }
       />
+
+      <div className="mb-4">
+        <Tabs
+          tabs={[
+            { id: 'subjects', label: 'Subjects' },
+            { id: 'relationships', label: 'Card Relationships' },
+            { id: 'assignments', label: 'Subject Assignments' },
+          ]}
+          active={activeTab}
+          onChange={(id) => { setActiveTab(id); sounds.click() }}
+        />
+      </div>
+
+      {activeTab === 'relationships' ? (
+        <CardRelationships ref={relationshipsRef} embedded />
+      ) : activeTab === 'assignments' ? (
+        <SubjectAssignments ref={assignmentsRef} embedded navigate={navigate} />
+      ) : (
+        <>
+      <div className="mb-4 flex gap-2">
+        <button
+          onClick={() => { setViewMode('list'); sounds.click() }}
+          className={`px-3 py-1.5 text-xs font-medium rounded-lg ${viewMode === 'list' ? 'bg-brand-600 text-white' : 'bg-white border border-slate-300 text-slate-600'}`}
+        >List View</button>
+        <button
+          onClick={() => { setViewMode('grid'); sounds.click() }}
+          className={`px-3 py-1.5 text-xs font-medium rounded-lg ${viewMode === 'grid' ? 'bg-brand-600 text-white' : 'bg-white border border-slate-300 text-slate-600'}`}
+        >Grid View</button>
+      </div>
 
       {state.subjects.length === 0 ? (
         <Card className="p-6">
@@ -79,8 +117,49 @@ export default function ManageSubjects() {
             action={<Button onClick={openAdd}>+ Add Subject</Button>}
           />
         </Card>
+      ) : viewMode === 'list' ? (
+        <Card className="overflow-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Subject</th>
+                <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Code</th>
+                <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Class</th>
+                <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Optional</th>
+                <th className="text-right text-xs font-bold text-slate-600 px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {state.subjects.map(subject => (
+                <tr key={subject.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <td className="px-4 py-3 text-sm font-semibold text-slate-800">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="w-3 h-3 rounded" style={{ backgroundColor: subject.color || '#3b82f6' }} />
+                      {subject.name}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-600">{subject.code || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-600">{subject.classId ? (state.classes.find(c => c.id === subject.classId)?.name || 'Unknown') : <span className="text-slate-300">All</span>}</td>
+                  <td className="px-4 py-3 text-center">{subject.isOptional ? <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">Optional</span> : <span className="text-slate-300">—</span>}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={() => openEdit(subject)} className="text-slate-400 hover:text-brand-600 mr-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button onClick={() => handleDelete(subject.id)} className="text-slate-400 hover:text-red-500">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
       ) : (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {state.subjects.map(subject => (
             <Card key={subject.id} className="p-5">
               <div className="flex items-start justify-between">
@@ -93,6 +172,9 @@ export default function ManageSubjects() {
                   <div>
                     <p className="text-sm font-semibold text-slate-800">{subject.name}</p>
                     {subject.code && <p className="text-xs text-slate-500">Code: {subject.code}</p>}
+                    {subject.classId && (
+                      <p className="text-xs text-slate-500">Class: {state.classes.find(c => c.id === subject.classId)?.name || 'Unknown'}</p>
+                    )}
                     {subject.isOptional && (
                       <div className="flex items-center gap-1 mt-1">
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">Optional</span>
@@ -128,6 +210,20 @@ export default function ManageSubjects() {
           <Input label="Subject Name *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Enter subject name" />
           <Input label="Subject Code" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="Enter subject code" />
           <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Class</label>
+            <select
+              value={form.classId}
+              onChange={e => { setForm({ ...form, classId: e.target.value }); sounds.click() }}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+            >
+              <option value="">-- All Classes --</option>
+              {state.classes.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-400 mt-1">Assign this subject to a specific class, or leave as "All Classes" if it applies to all.</p>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Color</label>
             <div className="flex flex-wrap gap-2">
               {COLORS.map(color => (
@@ -153,7 +249,7 @@ export default function ManageSubjects() {
               />
               <div>
                 <p className="text-sm font-medium text-slate-700">Optional Subject</p>
-                <p className="text-xs text-slate-500">Mark if not all students take this subject. Specify a secondary class for the other group.</p>
+                <p className="text-xs text-slate-500">Mark if not all pupils take this subject. Specify a secondary class for the other group.</p>
               </div>
             </label>
             {form.isOptional && (
@@ -169,7 +265,7 @@ export default function ManageSubjects() {
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
-                <p className="text-xs text-slate-400 mt-1">Students not taking this subject will attend the secondary class at the same time.</p>
+                <p className="text-xs text-slate-400 mt-1">Pupils not taking this subject will attend the secondary class at the same time.</p>
               </div>
             )}
           </div>
@@ -182,6 +278,8 @@ export default function ManageSubjects() {
       </Modal>
 
       <BulkImportModal open={bulkOpen} onClose={() => setBulkOpen(false)} type="subjects" />
+        </>
+      )}
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { useApp, getScheduleForClass } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
-import { Button, Card, PageHeader, Modal, EmptyState, ProgressBar, Badge, Toggle, Checkbox } from '../components/UI.jsx'
+import { Button, Card, PageHeader, Modal, EmptyState, ProgressBar, Badge, Toggle, Checkbox, Tabs } from '../components/UI.jsx'
 import { generateTimetable, canGenerate } from '../utils/generate.js'
 
 export default function SmartGenerate({ navigate }) {
@@ -24,6 +24,7 @@ export default function SmartGenerate({ navigate }) {
   const [generateProgress, setGenerateProgress] = useState({ current: 0, total: 0 })
   const [smoothProgress, setSmoothProgress] = useState(0)
   const [generateStats, setGenerateStats] = useState(null)
+  const [activeTab, setActiveTab] = useState('classes')
 
   const teachableSubjects = useMemo(() => {
     const teachersWithSubjects = state.teachers.filter(t => t.subjects && t.subjects.length > 0)
@@ -102,6 +103,12 @@ export default function SmartGenerate({ navigate }) {
         maxRetries,
         onProgress: (current, total) => setGenerateProgress({ current, total }),
         getScheduleForClassFn: (classId) => getScheduleForClass(state, classId),
+        teacherTimeOff: state.teacherTimeOff,
+        teacherConstraints: state.teacherConstraints,
+        cardRelationships: state.cardRelationships,
+        multiWeekCycle: state.multiWeekCycle,
+        autoRelax: state.autoRelax,
+        subjectAssignments: state.subjectAssignments,
       })
 
       dispatch({ type: 'GENERATE_TIMETABLE', payload: { entries, classIds: selectedClassIds } })
@@ -121,7 +128,7 @@ export default function SmartGenerate({ navigate }) {
 
   if (!genCheck.canGenerate) {
     return (
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <PageHeader title="Smart Generate" subtitle="Auto-generate timetables with intelligent constraint solving" />
         <Card className="p-6">
           <EmptyState
@@ -147,7 +154,7 @@ export default function SmartGenerate({ navigate }) {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <PageHeader
         title="Smart Generate"
         subtitle="Auto-generate timetables with intelligent constraint solving"
@@ -167,43 +174,54 @@ export default function SmartGenerate({ navigate }) {
         }
       />
 
-      <div className="grid grid-cols-3 gap-6">
-        {/* Left column: Class selection + options */}
-        <div className="col-span-2 space-y-6">
-          {/* Class Selection */}
-          <Card className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-slate-700">Select Classes</h3>
-              <button
-                onClick={toggleAllClasses}
-                className="text-xs text-brand-600 hover:text-brand-700 font-medium"
-              >
-                {selectedClassIds.length === state.classes.length ? 'Deselect All' : 'Select All'}
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {state.classes.map(cls => (
-                <label
-                  key={cls.id}
-                  className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                    selectedClassIds.includes(cls.id)
-                      ? 'border-brand-600 bg-brand-50'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <Checkbox
-                    checked={selectedClassIds.includes(cls.id)}
-                    onChange={() => toggleClass(cls.id)}
-                  />
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">{cls.name}</p>
-                    {cls.grade && <p className="text-xs text-slate-500">Grade: {cls.grade}</p>}
-                  </div>
-                </label>
-              ))}
-            </div>
-          </Card>
+      <div className="mb-4">
+        <Tabs
+          tabs={[
+            { id: 'classes', label: 'Select Classes' },
+            { id: 'options', label: 'Options & Preferences' },
+            { id: 'summary', label: 'Summary' },
+          ]}
+          active={activeTab}
+          onChange={(id) => { setActiveTab(id); sounds.click() }}
+        />
+      </div>
 
+      {activeTab === 'classes' ? (
+        <Card className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-slate-700">Select Classes</h3>
+            <button
+              onClick={toggleAllClasses}
+              className="text-xs text-brand-600 hover:text-brand-700 font-medium"
+            >
+              {selectedClassIds.length === state.classes.length ? 'Deselect All' : 'Select All'}
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {state.classes.map(cls => (
+              <label
+                key={cls.id}
+                className={
+                  'flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ' +
+                  (selectedClassIds.includes(cls.id)
+                    ? 'border-brand-600 bg-brand-50'
+                    : 'border-slate-200 hover:border-slate-300')
+                }
+              >
+                <Checkbox
+                  checked={selectedClassIds.includes(cls.id)}
+                  onChange={() => toggleClass(cls.id)}
+                />
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">{cls.name}</p>
+                  {cls.grade && <p className="text-xs text-slate-500">Grade: {cls.grade}</p>}
+                </div>
+              </label>
+            ))}
+          </div>
+        </Card>
+      ) : activeTab === 'options' ? (
+        <div className="space-y-6">
           {/* Generation Options */}
           <Card className="p-5">
             <h3 className="text-sm font-bold text-slate-700 mb-4">Generation Options</h3>
@@ -238,6 +256,14 @@ export default function SmartGenerate({ navigate }) {
                 />
                 <p className="text-xs text-slate-500">More retries = better fill rate but slower generation</p>
               </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-700">Auto-relax constraints</p>
+                  <p className="text-xs text-slate-500">If a slot can't be filled, relax constraints to maximize fill rate</p>
+                </div>
+                <Toggle checked={state.autoRelax} onChange={(v) => { dispatch({ type: 'SET_AUTO_RELAX', payload: v }); sounds.click() }} />
+              </div>
             </div>
           </Card>
 
@@ -267,12 +293,12 @@ export default function SmartGenerate({ navigate }) {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {teachableSubjects.map(subject => (
                       <div key={subject.id} className="flex items-center gap-3">
                         <div
                           className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                          style={{ backgroundColor: (subject.color || '#3b82f6') + '20', border: `2px solid ${subject.color || '#3b82f6'}` }}
+                          style={{ backgroundColor: (subject.color || '#3b82f6') + '20', border: '2px solid ' + (subject.color || '#3b82f6') }}
                         >
                           <span className="text-xs font-bold" style={{ color: subject.color || '#3b82f6' }}>
                             {subject.name.charAt(0).toUpperCase()}
@@ -328,11 +354,12 @@ export default function SmartGenerate({ navigate }) {
                             <button
                               key={day}
                               onClick={() => toggleTeacherDayOff(teacher.id, day)}
-                              className={`px-2 py-1 rounded text-xs font-medium transition-all ${
-                                isOff
+                              className={
+                                'px-2 py-1 rounded text-xs font-medium transition-all ' +
+                                (isOff
                                   ? 'bg-red-100 text-red-700 border border-red-300'
-                                  : 'bg-slate-50 text-slate-500 border border-slate-200 hover:border-slate-300'
-                              }`}
+                                  : 'bg-slate-50 text-slate-500 border border-slate-200 hover:border-slate-300')
+                              }
                             >
                               {day.slice(0, 3)}
                             </button>
@@ -349,90 +376,99 @@ export default function SmartGenerate({ navigate }) {
             </Card>
           )}
         </div>
-
-        {/* Right column: Summary */}
-        <div className="space-y-6">
-          <Card className="p-5 sticky top-0">
-            <h3 className="text-sm font-bold text-slate-700 mb-4">Generation Summary</h3>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Selected classes</span>
-                <span className="font-bold text-slate-800">{selectedClassIds.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Total teachers</span>
-                <span className="font-bold text-slate-800">{state.teachers.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Teachable subjects</span>
-                <span className="font-bold text-slate-800">{teachableSubjects.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Available rooms</span>
-                <span className="font-bold text-slate-800">{state.rooms.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Days</span>
-                <span className="font-bold text-slate-800">{state.settings.days.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Periods/day</span>
-                <span className="font-bold text-slate-800">{teachingPeriods.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Slots per class</span>
-                <span className="font-bold text-slate-800">{totalSlotsPerClass}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Total slots to fill</span>
-                <span className="font-bold text-brand-600">{selectedClassIds.length * totalSlotsPerClass}</span>
-              </div>
+      ) : (
+        <Card className="p-5">
+          <h3 className="text-sm font-bold text-slate-700 mb-4">Generation Summary</h3>
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Selected classes</span>
+              <span className="font-bold text-slate-800">{selectedClassIds.length}</span>
             </div>
-
-            <div className="mt-4 pt-4 border-t border-slate-200 space-y-2">
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${avoidSameSubjectDaily ? 'bg-green-500' : 'bg-slate-300'}`} />
-                <span className="text-xs text-slate-600">Subject variety per day</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${balanceTeacherLoad ? 'bg-green-500' : 'bg-slate-300'}`} />
-                <span className="text-xs text-slate-600">Teacher load balancing</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${useCustomWeights ? 'bg-green-500' : 'bg-slate-300'}`} />
-                <span className="text-xs text-slate-600">Custom subject frequency</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${useTeacherDayOff ? 'bg-green-500' : 'bg-slate-300'}`} />
-                <span className="text-xs text-slate-600">Teacher day-off preferences</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-brand-500" />
-                <span className="text-xs text-slate-600">{maxRetries} retry attempts per class</span>
-              </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Total teachers</span>
+              <span className="font-bold text-slate-800">{state.teachers.length}</span>
             </div>
-
-            <div className="mt-4 pt-4 border-t border-slate-200">
-              <Button
-                variant="success"
-                className="w-full"
-                disabled={selectedClassIds.length === 0 || generating}
-                onClick={handleGenerate}
-              >
-                <span className="flex items-center justify-center gap-1.5">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  Generate Now
-                </span>
-              </Button>
-              {selectedClassIds.length === 0 && (
-                <p className="text-xs text-slate-400 text-center mt-2">Select at least one class</p>
-              )}
+            <div className="flex justify-between">
+              <span className="text-slate-500">Teachable subjects</span>
+              <span className="font-bold text-slate-800">{teachableSubjects.length}</span>
             </div>
-          </Card>
-        </div>
-      </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Available rooms</span>
+              <span className="font-bold text-slate-800">{state.rooms.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Days</span>
+              <span className="font-bold text-slate-800">{state.settings.days.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Periods/day</span>
+              <span className="font-bold text-slate-800">{teachingPeriods.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Slots per class</span>
+              <span className="font-bold text-slate-800">{totalSlotsPerClass}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Total slots to fill</span>
+              <span className="font-bold text-brand-600">{selectedClassIds.length * totalSlotsPerClass}</span>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-slate-200 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className={'w-2 h-2 rounded-full ' + (avoidSameSubjectDaily ? 'bg-green-500' : 'bg-slate-300')} />
+              <span className="text-xs text-slate-600">Subject variety per day</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className={'w-2 h-2 rounded-full ' + (balanceTeacherLoad ? 'bg-green-500' : 'bg-slate-300')} />
+              <span className="text-xs text-slate-600">Teacher load balancing</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className={'w-2 h-2 rounded-full ' + (useCustomWeights ? 'bg-green-500' : 'bg-slate-300')} />
+              <span className="text-xs text-slate-600">Custom subject frequency</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className={'w-2 h-2 rounded-full ' + (useTeacherDayOff ? 'bg-green-500' : 'bg-slate-300')} />
+              <span className="text-xs text-slate-600">Teacher day-off preferences</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-brand-500" />
+              <span className="text-xs text-slate-600">{maxRetries} retry attempts per class</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className={'w-2 h-2 rounded-full ' + (state.autoRelax ? 'bg-green-500' : 'bg-slate-300')} />
+              <span className="text-xs text-slate-600">Auto-relax constraints</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className={'w-2 h-2 rounded-full ' + (Object.keys(state.teacherTimeOff || {}).length > 0 ? 'bg-green-500' : 'bg-slate-300')} />
+              <span className="text-xs text-slate-600">Teacher time-off grid</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className={'w-2 h-2 rounded-full ' + ((state.cardRelationships || []).length > 0 ? 'bg-green-500' : 'bg-slate-300')} />
+              <span className="text-xs text-slate-600">Card relationships ({(state.cardRelationships || []).length})</span>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-slate-200">
+            <Button
+              variant="success"
+              className="w-full"
+              disabled={selectedClassIds.length === 0 || generating}
+              onClick={handleGenerate}
+            >
+              <span className="flex items-center justify-center gap-1.5">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Generate Now
+              </span>
+            </Button>
+            {selectedClassIds.length === 0 && (
+              <p className="text-xs text-slate-400 text-center mt-2">Select at least one class</p>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Generate Loading Overlay */}
       {generating && (

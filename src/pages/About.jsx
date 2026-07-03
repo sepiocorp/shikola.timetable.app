@@ -15,7 +15,7 @@ export default function About() {
   ]
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <PageHeader title="About" subtitle="Learn more about Shikola Timetable Creator" />
 
       {/* App Identity */}
@@ -46,7 +46,7 @@ export default function About() {
 
       {/* Features */}
       <h3 className="text-sm font-bold text-slate-700 mb-3">Key Features</h3>
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         {features.map(feature => (
           <Card key={feature.title} className="p-5">
             <div className="flex items-start gap-3">

@@ -149,7 +149,7 @@ export function exportTimetablePDF({ title, subtitle, days, periods, rows, paper
   pdf.save(filename)
 }
 
-export function exportMasterPDF({ days, periods, timetables, paperSize, orientation, school, periodLabel }) {
+export function exportMasterPDF({ days, periods, timetables, paperSize, orientation, school, periodLabel, title }) {
   const dims = PAPER_SIZES[paperSize]
   if (!dims) return
 
@@ -176,7 +176,7 @@ export function exportMasterPDF({ days, periods, timetables, paperSize, orientat
   pdf.setFontSize(14)
   pdf.setTextColor(30, 64, 175)
   const titleY = school?.name ? headerY : 18
-  pdf.text('Master Timetable', pageW / 2, titleY, { align: 'center' })
+  pdf.text(title || 'Master Timetable', pageW / 2, titleY, { align: 'center' })
 
   pdf.setFontSize(8)
   pdf.setTextColor(80, 80, 80)

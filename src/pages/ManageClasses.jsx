@@ -1,26 +1,34 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
-import { Button, Input, Card, PageHeader, Modal, EmptyState, Badge } from '../components/UI.jsx'
+import { Button, Input, Card, PageHeader, Modal, EmptyState, Badge, Toggle, Tabs } from '../components/UI.jsx'
 import BulkImportModal from '../components/BulkImportModal.jsx'
+import Pupils from './Pupils.jsx'
+import ManageRooms from './ManageRooms.jsx'
+import LessonGroups from './LessonGroups.jsx'
 
 export default function ManageClasses() {
   const { state, dispatch } = useApp()
+  const [activeTab, setActiveTab] = useState('classes')
+  const pupilsRef = useRef(null)
+  const roomsRef = useRef(null)
+  const lessonGroupsRef = useRef(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ name: '', grade: '', section: '', classTeacher: '', sectionId: '' })
+  const [form, setForm] = useState({ name: '', grade: '', section: '', classTeacher: '', sectionId: '', isShared: false, sharedWith: '' })
+  const [viewMode, setViewMode] = useState('list')
 
   const openAdd = () => {
     setEditing(null)
-    setForm({ name: '', grade: '', section: '', classTeacher: '', sectionId: '' })
+    setForm({ name: '', grade: '', section: '', classTeacher: '', sectionId: '', isShared: false, sharedWith: '' })
     sounds.click()
     setModalOpen(true)
   }
 
   const openEdit = (cls) => {
     setEditing(cls)
-    setForm({ name: cls.name, grade: cls.grade || '', section: cls.section || '', classTeacher: cls.classTeacher || '', sectionId: cls.sectionId || '' })
+    setForm({ name: cls.name, grade: cls.grade || '', section: cls.section || '', classTeacher: cls.classTeacher || '', sectionId: cls.sectionId || '', isShared: cls.isShared || false, sharedWith: cls.sharedWith || '' })
     sounds.click()
     setModalOpen(true)
   }
@@ -49,17 +57,57 @@ export default function ManageClasses() {
   const getTeacherName = (id) => state.teachers.find(t => t.id === id)?.name
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <PageHeader
-        title="Classes"
-        subtitle={`${state.classes.length} class(es) registered`}
+        title={activeTab === 'pupils' ? 'Pupils' : activeTab === 'rooms' ? 'Rooms' : activeTab === 'lessonGroups' ? 'Lesson Divisions / Groups' : 'Classes'}
+        subtitle={activeTab === 'pupils' ? `${state.pupils.length} pupil(s) registered` : activeTab === 'rooms' ? `${state.rooms.length} room(s) registered` : activeTab === 'lessonGroups' ? 'Split a class into groups with different subjects per group (e.g., Boys/Girls, Advanced/Beginners)' : `${state.classes.length} class(es) registered`}
         action={
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => { sounds.click(); setBulkOpen(true) }}>Bulk Import</Button>
-            <Button onClick={openAdd}>+ Add Class</Button>
+            {activeTab === 'classes' && <>
+              <Button variant="secondary" onClick={() => { sounds.click(); setBulkOpen(true) }}>Bulk Import</Button>
+              <Button onClick={openAdd}>+ Add Class</Button>
+            </>}
+            {activeTab === 'pupils' && <>
+              <Button variant="secondary" onClick={() => pupilsRef.current?.openBulkImport()}>Bulk Import</Button>
+              <Button onClick={() => pupilsRef.current?.openAdd()}>+ Add Pupil</Button>
+            </>}
+            {activeTab === 'rooms' && <Button onClick={() => roomsRef.current?.openAdd()}>+ Add Room</Button>}
+            {activeTab === 'lessonGroups' && <Button onClick={() => lessonGroupsRef.current?.openAdd()}>+ Add Division</Button>}
           </div>
         }
       />
+
+      <div className="mb-4">
+        <Tabs
+          tabs={[
+            { id: 'classes', label: 'Classes' },
+            { id: 'pupils', label: 'Pupils' },
+            { id: 'rooms', label: 'Rooms' },
+            { id: 'lessonGroups', label: 'Lesson Groups' },
+          ]}
+          active={activeTab}
+          onChange={(id) => { setActiveTab(id); sounds.click() }}
+        />
+      </div>
+
+      {activeTab === 'pupils' ? (
+        <Pupils ref={pupilsRef} embedded />
+      ) : activeTab === 'rooms' ? (
+        <ManageRooms ref={roomsRef} embedded />
+      ) : activeTab === 'lessonGroups' ? (
+        <LessonGroups ref={lessonGroupsRef} embedded />
+      ) : (
+        <>
+      <div className="mb-4 flex gap-2">
+        <button
+          onClick={() => { setViewMode('list'); sounds.click() }}
+          className={`px-3 py-1.5 text-xs font-medium rounded-lg ${viewMode === 'list' ? 'bg-brand-600 text-white' : 'bg-white border border-slate-300 text-slate-600'}`}
+        >List View</button>
+        <button
+          onClick={() => { setViewMode('grid'); sounds.click() }}
+          className={`px-3 py-1.5 text-xs font-medium rounded-lg ${viewMode === 'grid' ? 'bg-brand-600 text-white' : 'bg-white border border-slate-300 text-slate-600'}`}
+        >Grid View</button>
+      </div>
 
       {state.classes.length === 0 ? (
         <Card className="p-6">
@@ -70,8 +118,46 @@ export default function ManageClasses() {
             action={<Button onClick={openAdd}>+ Add Class</Button>}
           />
         </Card>
+      ) : viewMode === 'list' ? (
+        <Card className="overflow-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Class</th>
+                <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Grade</th>
+                <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Section</th>
+                <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Class Teacher</th>
+                <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Shared</th>
+                <th className="text-right text-xs font-bold text-slate-600 px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {state.classes.map(cls => (
+                <tr key={cls.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <td className="px-4 py-3 text-sm font-semibold text-slate-800">{cls.name}</td>
+                  <td className="px-4 py-3 text-sm text-slate-600">{cls.grade || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-600">{cls.section || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-600">{getTeacherName(cls.classTeacher) || '—'}</td>
+                  <td className="px-4 py-3 text-center">{cls.isShared ? <Badge color="amber">Shared</Badge> : <span className="text-slate-300">—</span>}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={() => openEdit(cls)} className="text-slate-400 hover:text-brand-600 mr-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button onClick={() => handleDelete(cls.id)} className="text-slate-400 hover:text-red-500">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
       ) : (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {state.classes.map(cls => (
             <Card key={cls.id} className="p-5">
               <div className="flex items-start justify-between">
@@ -103,11 +189,22 @@ export default function ManageClasses() {
                 {cls.section && <Badge color="slate">Section: {cls.section}</Badge>}
                 {cls.sectionId && (() => {
                   const sec = state.sections.find(s => s.id === cls.sectionId)
-                  return sec ? <Badge color="blue">{sec.name}</Badge> : null
+                  if (!sec) return null
+                  return (
+                    <div className="flex flex-wrap gap-1">
+                      <Badge color="blue">{sec.name}</Badge>
+                      {sec.session && sec.session !== 'full' && (
+                        <Badge color={sec.session === 'morning' ? 'amber' : 'teal'}>
+                          {sec.session === 'morning' ? 'Morning' : 'Afternoon'}
+                        </Badge>
+                      )}
+                    </div>
+                  )
                 })()}
                 {cls.classTeacher && (
                   <p className="text-xs text-slate-500">Class Teacher: {getTeacherName(cls.classTeacher) || 'Unknown'}</p>
                 )}
+                {cls.isShared && <Badge color="amber">Shared Class</Badge>}
               </div>
             </Card>
           ))}
@@ -126,12 +223,12 @@ export default function ManageClasses() {
             >
               <option value="">Default (no section)</option>
               {state.sections.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+                <option key={s.id} value={s.id}>{s.name}{s.session && s.session !== 'full' ? ` (${s.session === 'morning' ? 'Morning' : 'Afternoon'})` : ''}</option>
               ))}
             </select>
             <p className="text-xs text-slate-400 mt-1">Assign a section if this class follows a different schedule (e.g., Primary vs Secondary).</p>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="Grade" value={form.grade} onChange={e => setForm({ ...form, grade: e.target.value })} placeholder="Enter grade" />
             <Input label="Section Label" value={form.section} onChange={e => setForm({ ...form, section: e.target.value })} placeholder="e.g., A, B" />
           </div>
@@ -148,6 +245,29 @@ export default function ManageClasses() {
               ))}
             </select>
           </div>
+          <div className="border border-slate-200 rounded-lg p-4 space-y-3">
+            <Toggle
+              checked={form.isShared}
+              onChange={(v) => { setForm({ ...form, isShared: v, sharedWith: v ? form.sharedWith : '' }); sounds.click() }}
+              label="Shared Class (Student Teacher / Practicals)"
+            />
+            <p className="text-xs text-slate-500">Mark if this class is shared with a student teacher for practicals.</p>
+            {form.isShared && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Shared With (Class)</label>
+                <select
+                  value={form.sharedWith}
+                  onChange={e => { setForm({ ...form, sharedWith: e.target.value }); sounds.click() }}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                >
+                  <option value="">-- Select Class --</option>
+                  {state.classes.filter(c => c.id !== editing?.id).map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
             <Button onClick={handleSave}>{editing ? 'Update' : 'Add'}</Button>
@@ -156,6 +276,8 @@ export default function ManageClasses() {
       </Modal>
 
       <BulkImportModal open={bulkOpen} onClose={() => setBulkOpen(false)} type="classes" />
+        </>
+      )}
     </div>
   )
 }

@@ -12,7 +12,7 @@ export default function Documentation() {
   ]
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <PageHeader title="Documentation" subtitle="Guides, license, and legal information" />
 
       <Tabs tabs={sections} active={tab} onChange={setTab} />

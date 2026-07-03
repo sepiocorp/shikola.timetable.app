@@ -37,6 +37,39 @@ const defaultData = {
   subjects: [],
   rooms: [],
   timetable: [],
+  // Phase 1: Core scheduling
+  teacherTimeOff: {},
+  teacherConstraints: {},
+  cardRelationships: [],
+  lessonTypes: [
+    { id: 'single', name: 'Single', length: 1 },
+    { id: 'double', name: 'Double', length: 2 },
+    { id: 'triple', name: 'Triple', length: 3 },
+  ],
+  // Phase 2: Class & lesson management
+  lessonDivisions: [],
+  lessonGroups: [],
+  jointClasses: [],
+  multiWeekCycle: 1,
+  lockedEntries: [],
+  // Phase 4: Substitutions & supervision
+  substitutions: [],
+  supervision: [],
+  // Phase 5: Export & print
+  customFields: [],
+  // Departments, subject assignments, shared resources
+  departments: [],
+  subjectAssignments: [],
+  sharedRooms: [],
+  sharedClasses: [],
+  // Phase 6: Advanced
+  lunchConstraint: { enabled: false, afterPeriodId: null, beforePeriodId: null },
+  educationBlocks: [],
+  buildings: [],
+  pupils: [],
+  autoRelax: false,
+  language: 'en',
+  backupHistory: [],
   lastDeleted: null,
   storageWarning: null,
   telemetry: {
@@ -65,12 +98,30 @@ export const PERIOD_TYPES = {
   year: { label: 'Full Year', weeks: 40, description: '~40 weeks (full academic year)' },
 }
 
+function deepMergeDefaults(defaults, saved) {
+  const result = { ...defaults }
+  for (const key in saved) {
+    if (
+      saved[key] !== null &&
+      typeof saved[key] === 'object' &&
+      !Array.isArray(saved[key]) &&
+      typeof defaults[key] === 'object' &&
+      !Array.isArray(defaults[key])
+    ) {
+      result[key] = deepMergeDefaults(defaults[key], saved[key])
+    } else {
+      result[key] = saved[key]
+    }
+  }
+  return result
+}
+
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      return { ...defaultData, ...parsed }
+      return deepMergeDefaults(defaultData, parsed)
     }
   } catch (e) {
     console.error('Failed to load data:', e)
@@ -142,6 +193,9 @@ function reducer(state, action) {
     case 'BULK_ADD_SUBJECTS':
       return { ...state, subjects: [...state.subjects, ...action.payload.map(s => ({ ...s, id: genId() }))] }
 
+    case 'BULK_ADD_PUPILS':
+      return { ...state, pupils: [...state.pupils, ...action.payload.map(p => ({ ...p, id: genId() }))] }
+
     case 'UPDATE_SUBJECT':
       return {
         ...state,
@@ -175,7 +229,7 @@ function reducer(state, action) {
     }
 
     case 'SET_TIMETABLE_ENTRY': {
-      const { day, periodId, teacherId, classId, subjectId, roomId, secondaryClassId, secondarySubjectId, secondaryTeacherId } = action.payload
+      const { day, periodId, teacherId, classId, subjectId, roomId, secondaryClassId, secondarySubjectId, secondaryTeacherId, lessonLength, lessonGroupId, locked } = action.payload
       const existing = state.timetable.find(
         e => e.day === day && e.periodId === periodId && e.classId === classId
       )
@@ -184,14 +238,14 @@ function reducer(state, action) {
           ...state,
           timetable: state.timetable.map(e =>
             e.id === existing.id
-              ? { ...e, teacherId, subjectId, roomId, secondaryClassId: secondaryClassId || '', secondarySubjectId: secondarySubjectId || '', secondaryTeacherId: secondaryTeacherId || '' }
+              ? { ...e, teacherId, subjectId, roomId, secondaryClassId: secondaryClassId || '', secondarySubjectId: secondarySubjectId || '', secondaryTeacherId: secondaryTeacherId || '', lessonLength: lessonLength || 1, lessonGroupId: lessonGroupId || '', locked: locked || false }
               : e
           ),
         }
       }
       return {
         ...state,
-        timetable: [...state.timetable, { id: genId(), day, periodId, teacherId, classId, subjectId, roomId, secondaryClassId: secondaryClassId || '', secondarySubjectId: secondarySubjectId || '', secondaryTeacherId: secondaryTeacherId || '' }],
+        timetable: [...state.timetable, { id: genId(), day, periodId, teacherId, classId, subjectId, roomId, secondaryClassId: secondaryClassId || '', secondarySubjectId: secondarySubjectId || '', secondaryTeacherId: secondaryTeacherId || '', lessonLength: lessonLength || 1, lessonGroupId: lessonGroupId || '', locked: locked || false }],
       }
     }
 
@@ -209,14 +263,15 @@ function reducer(state, action) {
     case 'GENERATE_TIMETABLE': {
       const { entries, classIds } = action.payload
       const otherEntries = state.timetable.filter(e => !classIds.includes(e.classId))
-      return { ...state, timetable: [...otherEntries, ...entries] }
+      const lockedEntries = state.timetable.filter(e => classIds.includes(e.classId) && state.lockedEntries?.includes(e.id))
+      return { ...state, timetable: [...otherEntries, ...lockedEntries, ...entries] }
     }
 
     case 'RESET_ALL':
       return { ...defaultData, lastDeleted: { type: 'all', data: state, timetableEntries: [] } }
 
     case 'IMPORT_DATA':
-      return { ...defaultData, ...action.payload }
+      return deepMergeDefaults(defaultData, action.payload)
 
     case 'SET_APPEARANCE':
       return { ...state, appearance: { ...state.appearance, ...action.payload } }
@@ -331,6 +386,187 @@ function reducer(state, action) {
         },
       }
 
+    // === Phase 1: Core Scheduling ===
+    case 'SET_TEACHER_TIME_OFF':
+      return { ...state, teacherTimeOff: { ...state.teacherTimeOff, ...action.payload } }
+
+    case 'SET_TEACHER_CONSTRAINTS':
+      return { ...state, teacherConstraints: { ...state.teacherConstraints, ...action.payload } }
+
+    case 'SET_LESSON_TYPES':
+      return { ...state, lessonTypes: action.payload }
+
+    // === Phase 2: Class & Lesson Management ===
+    case 'ADD_LESSON_DIVISION':
+      return { ...state, lessonDivisions: [...state.lessonDivisions, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_LESSON_DIVISION':
+      return {
+        ...state,
+        lessonDivisions: state.lessonDivisions.map(d => d.id === action.payload.id ? { ...d, ...action.payload } : d),
+      }
+
+    case 'DELETE_LESSON_DIVISION':
+      return { ...state, lessonDivisions: state.lessonDivisions.filter(d => d.id !== action.payload) }
+
+    case 'ADD_LESSON_GROUP':
+      return { ...state, lessonGroups: [...state.lessonGroups, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_LESSON_GROUP':
+      return {
+        ...state,
+        lessonGroups: state.lessonGroups.map(g => g.id === action.payload.id ? { ...g, ...action.payload } : g),
+      }
+
+    case 'DELETE_LESSON_GROUP':
+      return { ...state, lessonGroups: state.lessonGroups.filter(g => g.id !== action.payload) }
+
+    case 'ADD_JOINT_CLASS':
+      return { ...state, jointClasses: [...state.jointClasses, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_JOINT_CLASS':
+      return {
+        ...state,
+        jointClasses: state.jointClasses.map(j => j.id === action.payload.id ? { ...j, ...action.payload } : j),
+      }
+
+    case 'DELETE_JOINT_CLASS':
+      return { ...state, jointClasses: state.jointClasses.filter(j => j.id !== action.payload) }
+
+    case 'SET_MULTI_WEEK_CYCLE':
+      return { ...state, multiWeekCycle: action.payload }
+
+    // === Phase 4: Substitutions & Supervision ===
+    case 'ADD_SUPERVISION':
+      return { ...state, supervision: [...state.supervision, { ...action.payload, id: genId() }] }
+
+    case 'DELETE_SUPERVISION':
+      return { ...state, supervision: state.supervision.filter(s => s.id !== action.payload) }
+
+    // === Phase 5: Export & Print ===
+    case 'ADD_CUSTOM_FIELD':
+      return { ...state, customFields: [...state.customFields, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_CUSTOM_FIELD':
+      return {
+        ...state,
+        customFields: state.customFields.map(f => f.id === action.payload.id ? { ...f, ...action.payload } : f),
+      }
+
+    case 'DELETE_CUSTOM_FIELD':
+      return { ...state, customFields: state.customFields.filter(f => f.id !== action.payload) }
+
+    // === Phase 6: Advanced ===
+    case 'SET_LUNCH_CONSTRAINT':
+      return { ...state, lunchConstraint: { ...state.lunchConstraint, ...action.payload } }
+
+    case 'ADD_EDUCATION_BLOCK':
+      return { ...state, educationBlocks: [...state.educationBlocks, { ...action.payload, id: genId() }] }
+
+    case 'DELETE_EDUCATION_BLOCK':
+      return { ...state, educationBlocks: state.educationBlocks.filter(b => b.id !== action.payload) }
+
+    case 'ADD_BUILDING':
+      return { ...state, buildings: [...state.buildings, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_BUILDING':
+      return {
+        ...state,
+        buildings: state.buildings.map(b => b.id === action.payload.id ? { ...b, ...action.payload } : b),
+      }
+
+    case 'DELETE_BUILDING':
+      return { ...state, buildings: state.buildings.filter(b => b.id !== action.payload) }
+
+    case 'ADD_PUPIL':
+      return { ...state, pupils: [...state.pupils, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_PUPIL':
+      return {
+        ...state,
+        pupils: state.pupils.map(s => s.id === action.payload.id ? { ...s, ...action.payload } : s),
+      }
+
+    case 'DELETE_PUPIL':
+      return { ...state, pupils: state.pupils.filter(s => s.id !== action.payload) }
+
+    case 'SET_AUTO_RELAX':
+      return { ...state, autoRelax: action.payload }
+
+    case 'SET_LANGUAGE':
+      return { ...state, language: action.payload }
+
+    case 'BACKUP_DATA': {
+      const backup = { data: state, timestamp: new Date().toISOString(), id: genId() }
+      return { ...state, backupHistory: [backup, ...state.backupHistory].slice(0, 10) }
+    }
+
+    case 'RESTORE_BACKUP':
+      return { ...action.payload.data, lastDeleted: null }
+
+    case 'DELETE_BACKUP':
+      return { ...state, backupHistory: state.backupHistory.filter(b => b.id !== action.payload) }
+
+    // === Departments ===
+    case 'ADD_DEPARTMENT':
+      return { ...state, departments: [...state.departments, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_DEPARTMENT':
+      return {
+        ...state,
+        departments: state.departments.map(d => d.id === action.payload.id ? { ...d, ...action.payload } : d),
+      }
+
+    case 'DELETE_DEPARTMENT':
+      return {
+        ...state,
+        departments: state.departments.filter(d => d.id !== action.payload),
+        teachers: state.teachers.map(t => t.departmentId === action.payload ? { ...t, departmentId: '' } : t),
+        subjects: state.subjects.map(s => s.departmentId === action.payload ? { ...s, departmentId: '' } : s),
+      }
+
+    // === Subject Assignments ===
+    case 'ADD_SUBJECT_ASSIGNMENT':
+      return { ...state, subjectAssignments: [...state.subjectAssignments, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_SUBJECT_ASSIGNMENT':
+      return {
+        ...state,
+        subjectAssignments: state.subjectAssignments.map(a => a.id === action.payload.id ? { ...a, ...action.payload } : a),
+      }
+
+    case 'DELETE_SUBJECT_ASSIGNMENT':
+      return { ...state, subjectAssignments: state.subjectAssignments.filter(a => a.id !== action.payload) }
+
+    case 'BULK_SET_SUBJECT_ASSIGNMENTS':
+      return { ...state, subjectAssignments: action.payload }
+
+    // === Shared Rooms ===
+    case 'ADD_SHARED_ROOM':
+      return { ...state, sharedRooms: [...state.sharedRooms, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_SHARED_ROOM':
+      return {
+        ...state,
+        sharedRooms: state.sharedRooms.map(r => r.id === action.payload.id ? { ...r, ...action.payload } : r),
+      }
+
+    case 'DELETE_SHARED_ROOM':
+      return { ...state, sharedRooms: state.sharedRooms.filter(r => r.id !== action.payload) }
+
+    // === Shared Classes ===
+    case 'ADD_SHARED_CLASS':
+      return { ...state, sharedClasses: [...state.sharedClasses, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_SHARED_CLASS':
+      return {
+        ...state,
+        sharedClasses: state.sharedClasses.map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c),
+      }
+
+    case 'DELETE_SHARED_CLASS':
+      return { ...state, sharedClasses: state.sharedClasses.filter(c => c.id !== action.payload) }
+
     default:
       return state
   }
@@ -362,6 +598,21 @@ export function AppProvider({ children }) {
     if (period?.isBreak) {
       conflicts.push({ type: 'break', message: 'Cannot schedule during a break period' })
       return conflicts
+    }
+
+    // Check teacher time off
+    if (entry.teacherId) {
+      const timeOff = state.teacherTimeOff?.[entry.teacherId]
+      if (timeOff) {
+        if (timeOff.daysOff?.includes(entry.day)) {
+          const teacher = state.teachers.find(t => t.id === entry.teacherId)
+          conflicts.push({ type: 'time_off', message: `Teacher ${teacher?.name || 'Unknown'} is unavailable on ${entry.day}` })
+        }
+        if (timeOff.periodsOff?.includes(`${entry.day}-${entry.periodId}`)) {
+          const teacher = state.teachers.find(t => t.id === entry.teacherId)
+          conflicts.push({ type: 'time_off', message: `Teacher ${teacher?.name || 'Unknown'} is unavailable at this period` })
+        }
+      }
     }
 
     for (const e of existingTimetable) {
@@ -415,7 +666,7 @@ export function AppProvider({ children }) {
       }
     }
     return conflicts
-  }, [state.timetable, state.teachers, state.classes, state.rooms, state.settings.periods])
+  }, [state.timetable, state.teachers, state.classes, state.rooms, state.settings.periods, state.teacherTimeOff])
 
   const value = {
     state,

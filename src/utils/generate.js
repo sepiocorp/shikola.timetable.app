@@ -28,6 +28,106 @@ function isTeacherOffDay(teacher, day, teacherDayOff) {
   return offDays.includes(day)
 }
 
+function isTeacherOffPeriod(teacher, day, periodId, teacherTimeOff) {
+  // Check inline availability grid (from ManageTeachers)
+  if (teacher.availability) {
+    const key = `${day}-${periodId}`
+    if (teacher.availability[key] === false) return true
+  }
+  // Check legacy teacherTimeOff state
+  const timeOff = teacherTimeOff?.[teacher.id]
+  if (!timeOff) return false
+  if (timeOff.daysOff && timeOff.daysOff.includes(day)) return true
+  if (timeOff.periodsOff) {
+    const key = `${day}-${periodId}`
+    if (timeOff.periodsOff.includes(key)) return true
+  }
+  return false
+}
+
+function checkTeacherConstraints(teacher, day, periodId, classEntries, localTeacherDailyCount, teachingPeriods, teacherConstraints) {
+  // Check inline constraints on teacher object (from ManageTeachers)
+  const dayCount = (localTeacherDailyCount[teacher.id]?.[day] || 0)
+  const maxLessonsPerDay = teacher.maxLessonsPerDay || (teacherConstraints?.[teacher.id]?.maxLessonsPerDay)
+  if (maxLessonsPerDay && dayCount >= maxLessonsPerDay) return false
+  if (teacher.maxPeriods && dayCount >= teacher.maxPeriods) return false
+
+  // Max consecutive periods
+  const maxConsec = teacher.maxConsecutivePeriods || (teacherConstraints?.[teacher.id]?.maxConsecutivePeriods)
+  if (maxConsec) {
+    const periodIndex = teachingPeriods.findIndex(p => p.id === periodId)
+    const dayPeriods = classEntries
+      .filter(e => e.teacherId === teacher.id && e.day === day)
+      .map(e => teachingPeriods.findIndex(p => p.id === e.periodId))
+      .filter(idx => idx >= 0)
+      .sort((a, b) => a - b)
+    let consecutive = 1
+    for (let i = dayPeriods.length - 1; i >= 0; i--) {
+      if (dayPeriods[i] === periodIndex - 1) consecutive++
+      else break
+    }
+    if (consecutive >= maxConsec) return false
+  }
+
+  // Max teaching days
+  const maxDays = teacher.maxTeachingDays || (teacherConstraints?.[teacher.id]?.maxTeachingDays)
+  if (maxDays) {
+    const teachingDays = new Set()
+    for (const e of classEntries) {
+      if (e.teacherId === teacher.id) teachingDays.add(e.day)
+    }
+    // Also count from localTeacherDailyCount
+    for (const d in localTeacherDailyCount[teacher.id] || {}) {
+      if (localTeacherDailyCount[teacher.id][d] > 0) teachingDays.add(d)
+    }
+    if (!teachingDays.has(day) && teachingDays.size >= maxDays) return false
+  }
+
+  return true
+}
+
+function checkCardRelationships(subject, slot, classEntries, cardRelationships, cls) {
+  if (!cardRelationships || cardRelationships.length === 0) return true
+  for (const rel of cardRelationships) {
+    // Filter by class if specified
+    if (rel.classId && cls && rel.classId !== cls.id) continue
+
+    // Support both new field names (subjectId/relatedSubjectId) and old (subjectId1/subjectId2)
+    const subjId = rel.subjectId || rel.subjectId1
+    const relatedId = rel.relatedSubjectId || rel.subjectId2
+
+    if (subjId !== subject.id) continue
+
+    if (rel.type === 'not_same_day' && relatedId) {
+      const sameDayEntries = classEntries.filter(e => e.day === slot.day && e.subjectId === relatedId)
+      if (sameDayEntries.length > 0) return false
+    }
+    if (rel.type === 'same_day' && relatedId) {
+      const sameDayEntries = classEntries.filter(e => e.day === slot.day && e.subjectId === relatedId)
+      if (sameDayEntries.length === 0) {
+        const otherDayEntries = classEntries.filter(e => e.subjectId === relatedId)
+        if (otherDayEntries.length > 0 && !otherDayEntries.some(e => e.day === slot.day)) return false
+      }
+    }
+    if (rel.type === 'max_per_day') {
+      const dayCount = classEntries.filter(e => e.day === slot.day && e.subjectId === subject.id).length
+      if (dayCount >= (rel.maxPerDay || 1)) return false
+    }
+    if (rel.type === 'spread') {
+      const minGap = rel.minDayGap || 1
+      const subjectDays = classEntries
+        .filter(e => e.subjectId === subject.id)
+        .map(e => e.day)
+      const dayIdx = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].indexOf(slot.day)
+      for (const d of subjectDays) {
+        const dIdx = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].indexOf(d)
+        if (Math.abs(dayIdx - dIdx) < minGap) return false
+      }
+    }
+  }
+  return true
+}
+
 /**
  * Generate timetable entries for specified classes (or all classes).
  *
@@ -65,6 +165,12 @@ export function generateTimetable({
   maxRetries = 3,
   onProgress = null,
   getScheduleForClassFn = null,
+  teacherTimeOff = null,
+  teacherConstraints = null,
+  cardRelationships = null,
+  multiWeekCycle = 1,
+  autoRelax = false,
+  subjectAssignments = null,
 }) {
   const globalTeachingPeriods = periods.filter(p => !p.isBreak)
   const targetClasses = classIds
@@ -97,7 +203,9 @@ export function generateTimetable({
     }
   }
 
-  const entries = []
+  // Seed locked entries so they're preserved and not overwritten
+  const lockedEntryObjs = existingEntries.filter(e => e.locked)
+  const entries = [...lockedEntryObjs]
   const stats = {
     totalSlots: 0,
     filledSlots: 0,
@@ -109,10 +217,56 @@ export function generateTimetable({
   const totalClasses = targetClasses.length
   let classIndex = 0
 
-  // Build subject list based on weights or even distribution
-  function buildSubjectList(slotsLength, teachableSubjects) {
+  // Build subject list based on weights, subjectAssignments, or even distribution
+  function buildSubjectList(slotsLength, teachableSubjects, clsId) {
     const shuffledSubjects = [...teachableSubjects]
     shuffleArray(shuffledSubjects)
+
+    // If subjectAssignments exist for this class, use them for period limits
+    const classAssignments = subjectAssignments
+      ? subjectAssignments.filter(a => a.classId === clsId)
+      : []
+
+    if (classAssignments.length > 0) {
+      const list = []
+      const assignedSubjectIds = new Set()
+      for (const assignment of classAssignments) {
+        const subj = shuffledSubjects.find(s => s.id === assignment.subjectId)
+        if (subj) {
+          const periods = assignment.periodsPerWeek || 1
+          for (let i = 0; i < periods; i++) {
+            list.push(subj)
+          }
+          assignedSubjectIds.add(assignment.subjectId)
+        }
+      }
+      // If assigned total < slots, fill remainder with unassigned subjects (even distribution)
+      if (list.length < slotsLength) {
+        const unassigned = shuffledSubjects.filter(s => !assignedSubjectIds.has(s.id))
+        if (unassigned.length > 0) {
+          const remainder = slotsLength - list.length
+          const evenPerSubject = Math.floor(remainder / unassigned.length)
+          const extra = remainder % unassigned.length
+          for (let i = 0; i < unassigned.length; i++) {
+            const count = evenPerSubject + (i < extra ? 1 : 0)
+            for (let j = 0; j < count; j++) {
+              list.push(unassigned[i])
+            }
+          }
+        } else {
+          // All subjects have assignments but total < slots; pad with random assigned subjects
+          while (list.length < slotsLength && shuffledSubjects.length > 0) {
+            list.push(shuffledSubjects[Math.floor(Math.random() * shuffledSubjects.length)])
+          }
+        }
+      }
+      // Trim if over
+      if (list.length > slotsLength) {
+        list.length = slotsLength
+      }
+      shuffleArray(list)
+      return list
+    }
 
     if (subjectWeights) {
       // Use user-specified weights (periods per week per subject)
@@ -161,7 +315,7 @@ export function generateTimetable({
 
   // Generate entries for a single class (one attempt)
   function generateForClass(cls, teachableSubjects, availableTeachers, slots, classTeachingPeriods) {
-    const subjectList = buildSubjectList(slots.length, teachableSubjects)
+    const subjectList = buildSubjectList(slots.length, teachableSubjects, cls.id)
     const filledSlotsSet = new Set()
     const classEntries = []
 
@@ -189,11 +343,25 @@ export function generateTimetable({
         const candidateTeachers = availableTeachers.filter(t =>
           t.subjects.includes(subject.id) &&
           !isTeacherOffDay(t, slot.day, teacherDayOff) &&
+          !isTeacherOffPeriod(t, slot.day, slot.periodId, teacherTimeOff) &&
           !(localTeacherBusy[slotKey] || new Set()).has(t.id) &&
-          (localTeacherDailyCount[t.id]?.[slot.day] || 0) < (t.maxPeriods || 6)
+          (localTeacherDailyCount[t.id]?.[slot.day] || 0) < (t.maxPeriods || 6) &&
+          checkTeacherConstraints(t, slot.day, slot.periodId, classEntries, localTeacherDailyCount, classTeachingPeriods, teacherConstraints)
         )
 
-        if (candidateTeachers.length === 0) continue
+        if (candidateTeachers.length === 0) {
+          if (autoRelax) {
+            const relaxed = availableTeachers.filter(t =>
+              t.subjects.includes(subject.id) &&
+              !(localTeacherBusy[slotKey] || new Set()).has(t.id)
+            )
+            if (relaxed.length === 0) continue
+            candidateTeachers.length = 0
+            candidateTeachers.push(...relaxed)
+          } else continue
+        }
+
+        if (!checkCardRelationships(subject, slot, classEntries, cardRelationships, cls)) continue
 
         // Score this slot: prefer days where subject hasn't appeared yet
         let score = 1
@@ -238,6 +406,9 @@ export function generateTimetable({
           secondaryClassId: '',
           secondarySubjectId: '',
           secondaryTeacherId: '',
+          lessonLength: subject.lessonLength || 1,
+          lessonGroupId: '',
+          locked: false,
         }
 
         // Handle optional subject: assign secondary class subject+teacher

@@ -3,6 +3,7 @@ import { useApp, PERIOD_TYPES } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
 import { Button, Input, Select, Card, PageHeader, Modal, Toggle, Badge, Tabs } from '../components/UI.jsx'
 import { sendRegistration, trackEvent } from '../utils/telemetry.js'
+import BackupRestore from './BackupRestore.jsx'
 
 const ALL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -26,6 +27,140 @@ const ABOUT_FEATURES = [
   { icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5', title: 'Academic Periods', desc: 'Organize timetables by week, term, quarter, semester, or full academic year' },
 ]
 
+function BuildingForm({ onAdd }) {
+  const [name, setName] = useState('')
+  const [floors, setFloors] = useState('')
+
+  const handleAdd = () => {
+    if (!name.trim()) return
+    onAdd({ name: name.trim(), floors: floors ? parseInt(floors) : undefined })
+    setName('')
+    setFloors('')
+  }
+
+  return (
+    <div className="flex gap-3 items-end">
+      <div className="flex-1">
+        <label className="block text-sm font-medium text-slate-700 mb-1">Building Name</label>
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          placeholder="e.g., Science Block"
+          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+      </div>
+      <div className="w-24">
+        <label className="block text-sm font-medium text-slate-700 mb-1">Floors</label>
+        <input
+          type="number"
+          min="1"
+          value={floors}
+          onChange={e => setFloors(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          placeholder="1"
+          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+      </div>
+      <Button size="sm" onClick={handleAdd}>Add</Button>
+    </div>
+  )
+}
+
+function EducationBlockForm({ onAdd, state }) {
+  const [subjectId, setSubjectId] = useState('')
+  const [classId, setClassId] = useState('')
+  const [length, setLength] = useState(2)
+  const [days, setDays] = useState([])
+
+  const toggleDay = (day) => {
+    setDays(d => d.includes(day) ? d.filter(x => x !== day) : [...d, day])
+  }
+
+  const handleAdd = () => {
+    if (length < 2) return
+    onAdd({ subjectId, classId, length: parseInt(length), days })
+    setSubjectId(''); setClassId(''); setLength(2); setDays([])
+  }
+
+  return (
+    <div className="border-t border-slate-200 pt-4 space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Subject (optional)</label>
+          <select value={subjectId} onChange={e => setSubjectId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+            <option value="">Any subject</option>
+            {state.subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Class (optional)</label>
+          <select value={classId} onChange={e => setClassId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+            <option value="">All classes</option>
+            {state.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Block Length (periods)</label>
+          <input type="number" min="2" max="6" value={length} onChange={e => setLength(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Days (optional)</label>
+        <div className="flex gap-2 flex-wrap">
+          {state.settings.days.map(day => (
+            <button key={day} onClick={() => toggleDay(day)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${days.includes(day) ? 'bg-brand-100 text-brand-700 border-brand-300' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>{day}</button>
+          ))}
+        </div>
+      </div>
+      <Button size="sm" onClick={handleAdd}>+ Add Block</Button>
+    </div>
+  )
+}
+
+function CustomFieldForm({ onAdd, state }) {
+  const [key, setKey] = useState('')
+  const [label, setLabel] = useState('')
+  const [subjectId, setSubjectId] = useState('')
+  const [classId, setClassId] = useState('')
+
+  const handleAdd = () => {
+    if (!key.trim() || !label.trim()) return
+    onAdd({ key: key.trim(), label: label.trim(), subjectId, classId })
+    setKey(''); setLabel(''); setSubjectId(''); setClassId('')
+  }
+
+  return (
+    <div className="border-t border-slate-200 pt-4 space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Field Key *</label>
+          <input value={key} onChange={e => setKey(e.target.value)} placeholder="e.g., note, abbreviation" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Display Label *</label>
+          <input value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g., Room Note" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Subject (optional)</label>
+          <select value={subjectId} onChange={e => setSubjectId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+            <option value="">All subjects</option>
+            {state.subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Class (optional)</label>
+          <select value={classId} onChange={e => setClassId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+            <option value="">All classes</option>
+            {state.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      </div>
+      <Button size="sm" onClick={handleAdd}>+ Add Field</Button>
+    </div>
+  )
+}
+
 export default function Settings() {
   const { state, dispatch } = useApp()
   const [schoolForm, setSchoolForm] = useState(state.school || {})
@@ -39,7 +174,7 @@ export default function Settings() {
   const [appearance, setAppearance] = useState(state.appearance || {})
   const [sectionModal, setSectionModal] = useState(false)
   const [editingSection, setEditingSection] = useState(null)
-  const [sectionForm, setSectionForm] = useState({ name: '', days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], periods: [] })
+  const [sectionForm, setSectionForm] = useState({ name: '', session: 'full', days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], periods: [] })
   const [sectionNumPeriods, setSectionNumPeriods] = useState(8)
 
   const handleSchoolSave = () => {
@@ -145,11 +280,23 @@ export default function Settings() {
     }
   }
 
-  const generateSectionPeriods = (num) => {
+  const SESSION_START_TIMES = {
+    morning: '07:00',
+    afternoon: '13:00',
+    full: '08:00',
+  }
+
+  const SESSION_LABELS = {
+    morning: 'Morning',
+    afternoon: 'Afternoon',
+    full: 'Full Day',
+  }
+
+  const generateSectionPeriods = (num, session = 'full') => {
     const periods = []
-    let currentTime = '08:00'
+    let currentTime = SESSION_START_TIMES[session] || '08:00'
     const periodDuration = 40
-    const breakAfter = 4
+    const breakAfter = session === 'full' ? 4 : Math.min(4, Math.floor(num / 2))
     for (let i = 1; i <= num; i++) {
       const [h, m] = currentTime.split(':').map(Number)
       const endM = m + periodDuration
@@ -157,13 +304,13 @@ export default function Settings() {
       const endTime = `${String(endH).padStart(2, '0')}:${String(endM % 60).padStart(2, '0')}`
       periods.push({ id: i, name: `Period ${i}`, start: currentTime, end: endTime })
       currentTime = endTime
-      if (i === breakAfter) {
-        periods.push({ id: i + 100, name: 'Break', start: currentTime, end: (() => {
-          const [bh, bm] = currentTime.split(':').map(Number)
-          return `${String(bh).padStart(2, '0')}:${String(bm + 20).padStart(2, '0')}`
-        })(), isBreak: true })
+      if (i === breakAfter && i < num) {
         const [bh, bm] = currentTime.split(':').map(Number)
-        currentTime = `${String(bh).padStart(2, '0')}:${String(bm + 20).padStart(2, '0')}`
+        const breakEndM = bm + 15
+        const breakEndH = bh + Math.floor(breakEndM / 60)
+        const breakEnd = `${String(breakEndH).padStart(2, '0')}:${String(breakEndM % 60).padStart(2, '0')}`
+        periods.push({ id: i + 100, name: 'Break', start: currentTime, end: breakEnd, isBreak: true })
+        currentTime = breakEnd
       }
     }
     return periods
@@ -173,6 +320,7 @@ export default function Settings() {
     setEditingSection(null)
     setSectionForm({
       name: '',
+      session: 'full',
       days: [...state.settings.days],
       periods: state.settings.periods.map(p => ({ ...p })),
     })
@@ -185,6 +333,7 @@ export default function Settings() {
     setEditingSection(section)
     setSectionForm({
       name: section.name,
+      session: section.session || 'full',
       days: [...(section.days || [])],
       periods: (section.periods || []).map(p => ({ ...p })),
     })
@@ -211,7 +360,12 @@ export default function Settings() {
 
   const handleSectionNumPeriodsChange = (num) => {
     setSectionNumPeriods(num)
-    setSectionForm(f => ({ ...f, periods: generateSectionPeriods(num) }))
+    setSectionForm(f => ({ ...f, periods: generateSectionPeriods(num, f.session) }))
+    sounds.click()
+  }
+
+  const handleSectionSessionChange = (session) => {
+    setSectionForm(f => ({ ...f, session, periods: generateSectionPeriods(sectionNumPeriods, session) }))
     sounds.click()
   }
 
@@ -221,7 +375,7 @@ export default function Settings() {
       return
     }
     const orderedDays = ALL_DAYS.filter(d => sectionForm.days.includes(d))
-    const payload = { name: sectionForm.name, days: orderedDays, periods: sectionForm.periods }
+    const payload = { name: sectionForm.name, session: sectionForm.session || 'full', days: orderedDays, periods: sectionForm.periods }
     if (editingSection) {
       dispatch({ type: 'UPDATE_SECTION', payload: { ...editingSection, ...payload } })
     } else {
@@ -272,7 +426,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <PageHeader title="Settings" subtitle="Configure school information, appearance, and timetable settings" />
 
       {/* Settings Tabs */}
@@ -283,7 +437,11 @@ export default function Settings() {
             { id: 'sections', label: 'Sections' },
             { id: 'periods', label: 'Academic Periods' },
             { id: 'appearance', label: 'Appearance' },
+            { id: 'advanced', label: 'Advanced' },
+            { id: 'education', label: 'Education Blocks' },
+            { id: 'customFields', label: 'Custom Fields' },
             { id: 'data', label: 'Data' },
+            { id: 'backup', label: 'Backup & Restore' },
             { id: 'privacy', label: 'Privacy & Telemetry' },
             { id: 'about', label: 'About' },
           ]}
@@ -297,7 +455,7 @@ export default function Settings() {
         <>
           <Card className="p-6 mb-6">
             <h3 className="text-sm font-bold text-slate-700 mb-4">School Information</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="School Name" value={schoolForm.name || ''} onChange={e => setSchoolForm({ ...schoolForm, name: e.target.value })} className="col-span-2" />
 
               {/* Logo Upload */}
@@ -352,7 +510,7 @@ export default function Settings() {
 
           <Card className="p-6 mb-6">
             <h3 className="text-sm font-bold text-slate-700 mb-4">School Days</h3>
-            <div className="grid grid-cols-4 gap-3 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
               {ALL_DAYS.map(day => (
                 <button
                   key={day}
@@ -402,14 +560,15 @@ export default function Settings() {
             <Button size="sm" onClick={openAddSection}>+ Add Section</Button>
           </div>
           <p className="text-xs text-slate-500 mb-4">
-            Create sections (e.g., Primary, Secondary) with their own days and period schedules.
-            Assign classes to sections in the Classes page. Classes without a section use the default schedule.
+            Create sections for different school units (e.g., Primary, Secondary) and sessions (Morning, Afternoon).
+            Each section has its own days and period schedule. Assign classes to sections in the Classes page.
+            Classes without a section use the default schedule.
           </p>
 
           {state.sections.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-sm text-slate-400">No sections created yet.</p>
-              <p className="text-xs text-slate-400 mt-1">Add a section if your school has different schedules for different levels (e.g., primary vs secondary).</p>
+              <p className="text-xs text-slate-400 mt-1">Add a section for each unit/session (e.g., Primary Morning, Secondary Afternoon).</p>
               <div className="mt-4">
                 <Button size="sm" onClick={openAddSection}>+ Add Section</Button>
               </div>
@@ -430,6 +589,9 @@ export default function Settings() {
                       <div>
                         <p className="text-sm font-semibold text-slate-800">{section.name}</p>
                         <div className="flex items-center gap-2 mt-0.5">
+                          {section.session && section.session !== 'full' && (
+                            <Badge color={section.session === 'morning' ? 'amber' : 'teal'}>{SESSION_LABELS[section.session] || section.session}</Badge>
+                          )}
                           <Badge color="blue">{classCount} class(es)</Badge>
                           <span className="text-xs text-slate-500">{(section.days || []).length} days, {teachingPeriods.length} periods</span>
                         </div>
@@ -551,7 +713,7 @@ export default function Settings() {
           </div>
 
           {/* Custom Colors */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Primary Color</label>
               <div className="flex items-center gap-2">
@@ -599,6 +761,196 @@ export default function Settings() {
         </Card>
       )}
 
+      {/* Advanced Tab */}
+      {settingsTab === 'advanced' && (
+        <>
+          <Card className="p-6 mb-6">
+            <h3 className="text-sm font-bold text-slate-700 mb-4">Lunch Constraint</h3>
+            <p className="text-xs text-slate-500 mb-4">Ensure lunch break is scheduled within a specific period range.</p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-700">Enable lunch constraint</p>
+                  <p className="text-xs text-slate-500">When enabled, generation will try to keep lunch within the specified range</p>
+                </div>
+                <Toggle
+                  checked={state.lunchConstraint?.enabled || false}
+                  onChange={(v) => { dispatch({ type: 'SET_LUNCH_CONSTRAINT', payload: { enabled: v } }); sounds.click() }}
+                />
+              </div>
+              {state.lunchConstraint?.enabled && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Lunch after period</label>
+                    <select
+                      value={state.lunchConstraint.afterPeriodId || ''}
+                      onChange={e => dispatch({ type: 'SET_LUNCH_CONSTRAINT', payload: { afterPeriodId: e.target.value } })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                    >
+                      <option value="">-- Select --</option>
+                      {state.settings.periods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Lunch before period</label>
+                    <select
+                      value={state.lunchConstraint.beforePeriodId || ''}
+                      onChange={e => dispatch({ type: 'SET_LUNCH_CONSTRAINT', payload: { beforePeriodId: e.target.value } })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                    >
+                      <option value="">-- Select --</option>
+                      {state.settings.periods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          <Card className="p-6 mb-6">
+            <h3 className="text-sm font-bold text-slate-700 mb-4">Multi-Week Cycle</h3>
+            <p className="text-xs text-slate-500 mb-4">Set the number of weeks in the scheduling cycle (for rotating timetables).</p>
+            <div className="flex items-center gap-4">
+              <input
+                type="number"
+                min="1"
+                max="4"
+                value={state.multiWeekCycle || 1}
+                onChange={e => dispatch({ type: 'SET_MULTI_WEEK_CYCLE', payload: Math.max(1, Math.min(4, Number(e.target.value) || 1)) })}
+                className="w-24 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+              <span className="text-sm text-slate-500">week(s) per cycle</span>
+            </div>
+          </Card>
+
+          <Card className="p-6 mb-6">
+            <h3 className="text-sm font-bold text-slate-700 mb-4">Language</h3>
+            <p className="text-xs text-slate-500 mb-4">Interface language preference.</p>
+            <div className="flex gap-3">
+              {[
+                { code: 'en', label: 'English' },
+                { code: 'sw', label: 'Kiswahili' },
+                { code: 'fr', label: 'Français' },
+              ].map(lang => (
+                <button
+                  key={lang.code}
+                  onClick={() => { dispatch({ type: 'SET_LANGUAGE', payload: lang.code }); sounds.click() }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    state.language === lang.code
+                      ? 'bg-brand-100 text-brand-700 border border-brand-300'
+                      : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  {lang.label}
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="p-6 mb-6">
+            <h3 className="text-sm font-bold text-slate-700 mb-4">Buildings</h3>
+            <p className="text-xs text-slate-500 mb-4">Manage campus buildings for room assignments.</p>
+            <div className="space-y-2 mb-4">
+              {state.buildings.map(b => (
+                <div key={b.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium text-slate-700">{b.name}</p>
+                    {b.floors && <p className="text-xs text-slate-500">{b.floors} floor(s)</p>}
+                  </div>
+                  <button onClick={() => { dispatch({ type: 'DELETE_BUILDING', payload: b.id }); sounds.delete() }} className="text-slate-400 hover:text-red-500">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+              {state.buildings.length === 0 && <p className="text-sm text-slate-400">No buildings added yet.</p>}
+            </div>
+            <BuildingForm onAdd={(data) => { dispatch({ type: 'ADD_BUILDING', payload: data }); sounds.add() }} />
+          </Card>
+        </>
+      )}
+
+      {/* Education Blocks Tab */}
+      {settingsTab === 'education' && (
+        <Card className="p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-bold text-slate-700">Education Blocks</h3>
+              <p className="text-xs text-slate-500">Define blocks of consecutive periods for specific subjects (e.g., 3-period science lab).</p>
+            </div>
+          </div>
+          {state.educationBlocks.length === 0 ? (
+            <p className="text-sm text-slate-400 py-4 text-center">No education blocks defined yet.</p>
+          ) : (
+            <div className="space-y-2 mb-4">
+              {state.educationBlocks.map(block => (
+                <div key={block.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Badge color="indigo">{block.length} periods</Badge>
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">{block.subjectId ? state.subjects.find(s => s.id === block.subjectId)?.name || 'Unknown' : 'Any subject'}</p>
+                      <p className="text-xs text-slate-500">{block.classId ? state.classes.find(c => c.id === block.classId)?.name || 'Unknown' : 'All classes'} · {block.days?.join(', ') || 'Any day'}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => { dispatch({ type: 'DELETE_EDUCATION_BLOCK', payload: block.id }); sounds.delete() }} className="text-slate-400 hover:text-red-500">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <EducationBlockForm onAdd={(data) => { dispatch({ type: 'ADD_EDUCATION_BLOCK', payload: data }); sounds.add() }} state={state} />
+        </Card>
+      )}
+
+      {/* Custom Fields Tab */}
+      {settingsTab === 'customFields' && (
+        <Card className="p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-bold text-slate-700">Custom Fields on Cards</h3>
+              <p className="text-xs text-slate-500">Add custom text that appears on timetable cells (e.g., room notes, teacher initials).</p>
+            </div>
+          </div>
+          {state.customFields.length === 0 ? (
+            <p className="text-sm text-slate-400 py-4 text-center">No custom fields defined yet.</p>
+          ) : (
+            <div className="space-y-2 mb-4">
+              {state.customFields.map(field => (
+                <div key={field.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Badge color="purple">{field.key}</Badge>
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">{field.label}</p>
+                      <p className="text-xs text-slate-500">{field.subjectId ? `Subject: ${state.subjects.find(s => s.id === field.subjectId)?.name || 'Unknown'}` : 'All subjects'} · {field.classId ? `Class: ${state.classes.find(c => c.id === field.classId)?.name || 'Unknown'}` : 'All classes'}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => {
+                      const newLabel = prompt('Edit label:', field.label)
+                      if (newLabel !== null) { dispatch({ type: 'UPDATE_CUSTOM_FIELD', payload: { ...field, label: newLabel } }); sounds.click() }
+                    }} className="text-slate-400 hover:text-brand-600">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button onClick={() => { dispatch({ type: 'DELETE_CUSTOM_FIELD', payload: field.id }); sounds.delete() }} className="text-slate-400 hover:text-red-500">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <CustomFieldForm onAdd={(data) => { dispatch({ type: 'ADD_CUSTOM_FIELD', payload: data }); sounds.add() }} state={state} />
+        </Card>
+      )}
+
       {/* Data Tab */}
       {settingsTab === 'data' && (
         <>
@@ -617,6 +969,11 @@ export default function Settings() {
           </Card>
 
         </>
+      )}
+
+      {/* Backup & Restore Tab */}
+      {settingsTab === 'backup' && (
+        <BackupRestore embedded />
       )}
 
       {/* Privacy & Telemetry Tab */}
@@ -791,7 +1148,7 @@ export default function Settings() {
           </Card>
 
           <h3 className="text-sm font-bold text-slate-700 mb-3">Key Features</h3>
-          <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
             {ABOUT_FEATURES.map(feature => (
               <Card key={feature.title} className="p-5">
                 <div className="flex items-start gap-3">
@@ -879,7 +1236,7 @@ export default function Settings() {
               ))}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="Start Date" type="date" value={periodForm.startDate} onChange={e => setPeriodForm({ ...periodForm, startDate: e.target.value })} />
             <Input label="End Date" type="date" value={periodForm.endDate} onChange={e => setPeriodForm({ ...periodForm, endDate: e.target.value })} />
           </div>
@@ -896,8 +1253,32 @@ export default function Settings() {
           <Input label="Section Name *" value={sectionForm.name} onChange={e => setSectionForm({ ...sectionForm, name: e.target.value })} placeholder="e.g., Primary, Secondary" />
 
           <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Session Type</label>
+            <div className="grid grid-cols-3 gap-2">
+              {Object.entries(SESSION_LABELS).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => handleSectionSessionChange(key)}
+                  className={`px-3 py-2 rounded-lg text-sm border-2 transition-all ${
+                    sectionForm.session === key
+                      ? 'border-brand-600 bg-brand-50 text-brand-700'
+                      : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              {sectionForm.session === 'morning' && 'Periods start at 07:00 by default.'}
+              {sectionForm.session === 'afternoon' && 'Periods start at 13:00 by default.'}
+              {sectionForm.session === 'full' && 'Periods start at 08:00 by default.'}
+            </p>
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Section Days</label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
               {ALL_DAYS.map(day => (
                 <button
                   key={day}

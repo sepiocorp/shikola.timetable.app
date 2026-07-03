@@ -101,7 +101,7 @@ This software is the intellectual property of Sepio Corp. Unauthorized copying, 
 
 **Sepio Corp**
 
-Email: sepio.corp@email.com
+Email: sepiopixel@gmail.com
 
 ## Disclaimer
 

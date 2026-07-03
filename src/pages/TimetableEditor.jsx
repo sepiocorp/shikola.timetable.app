@@ -1,20 +1,21 @@
 import React, { useState, useMemo } from 'react'
 import { useApp, getScheduleForClass } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
-import { Button, Select, Card, PageHeader, Modal, EmptyState, ProgressBar, Badge } from '../components/UI.jsx'
+import { Button, Select, Card, PageHeader, Modal, EmptyState, ProgressBar, Badge, Tabs } from '../components/UI.jsx'
 import { generateTimetable, canGenerate } from '../utils/generate.js'
 
 export default function TimetableEditor({ navigate }) {
   const { state, dispatch, checkConflicts } = useApp()
   const [selectedClass, setSelectedClass] = useState('')
   const [cellModal, setCellModal] = useState(null)
-  const [form, setForm] = useState({ teacherId: '', subjectId: '', roomId: '', secondaryClassId: '', secondarySubjectId: '', secondaryTeacherId: '' })
+  const [form, setForm] = useState({ teacherId: '', subjectId: '', roomId: '', secondaryClassId: '', secondarySubjectId: '', secondaryTeacherId: '', lessonLength: 1, lessonGroupId: '' })
   const [conflicts, setConflicts] = useState([])
   const [generating, setGenerating] = useState(false)
   const [generateProgress, setGenerateProgress] = useState({ current: 0, total: 0 })
   const [smoothProgress, setSmoothProgress] = useState(0)
   const [generateStats, setGenerateStats] = useState(null)
   const [generateModal, setGenerateModal] = useState(null)
+  const [activeTab, setActiveTab] = useState('editor')
 
   const schedule = useMemo(() => {
     if (!selectedClass) return { days: state.settings.days, periods: state.settings.periods }
@@ -46,6 +47,8 @@ export default function TimetableEditor({ navigate }) {
       secondaryClassId: existing?.secondaryClassId || '',
       secondarySubjectId: existing?.secondarySubjectId || '',
       secondaryTeacherId: existing?.secondaryTeacherId || '',
+      lessonLength: existing?.lessonLength || 1,
+      lessonGroupId: existing?.lessonGroupId || '',
     })
     setConflicts([])
     setCellModal({ day, periodId, existing })
@@ -97,6 +100,8 @@ export default function TimetableEditor({ navigate }) {
         secondaryClassId,
         secondarySubjectId,
         secondaryTeacherId,
+        lessonLength: form.lessonLength || 1,
+        lessonGroupId: form.lessonGroupId || '',
       },
     })
     sounds.add()
@@ -153,6 +158,12 @@ export default function TimetableEditor({ navigate }) {
         existingEntries,
         onProgress: (current, total) => setGenerateProgress({ current, total }),
         getScheduleForClassFn: (classId) => getScheduleForClass(state, classId),
+        teacherTimeOff: state.teacherTimeOff,
+        teacherConstraints: state.teacherConstraints,
+        cardRelationships: state.cardRelationships,
+        subjectAssignments: state.subjectAssignments,
+        lockedEntries: state.timetable.filter(e => classIds.includes(e.classId) && state.lockedEntries?.includes(e.id)).map(e => e.id),
+        autoRelax: state.autoRelax,
       })
 
       dispatch({ type: 'GENERATE_TIMETABLE', payload: { entries, classIds } })
@@ -200,7 +211,7 @@ export default function TimetableEditor({ navigate }) {
 
   if (state.classes.length === 0) {
     return (
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <PageHeader title="Timetable Editor" />
         <Card className="p-6">
           <EmptyState
@@ -215,7 +226,7 @@ export default function TimetableEditor({ navigate }) {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <PageHeader
         title="Timetable Editor"
         subtitle="Create and edit class timetables with automatic conflict detection"
@@ -243,32 +254,84 @@ export default function TimetableEditor({ navigate }) {
                 Clear Class
               </Button>
             )}
-            <Button
-              variant="success"
-              size="sm"
-              disabled={!genCheck.canGenerate || !selectedClass}
-              onClick={() => handleGenerateClick('single')}
-              title={!genCheck.canGenerate ? genCheck.issues.join(', ') : 'Auto-generate timetable for this class'}
-            >
-              <span className="flex items-center gap-1.5">
-                <img src="./ai.png" alt="AI" className="w-4 h-4 object-contain" />
-                Generate for Me
-              </span>
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={!genCheck.canGenerate}
-              onClick={() => handleGenerateClick('bulk')}
-              title={!genCheck.canGenerate ? genCheck.issues.join(', ') : 'Auto-generate timetables for ALL classes'}
-            >
-              Generate All Classes
-            </Button>
           </div>
         }
       />
 
-      {!selectedClass ? (
+      <div className="mb-4">
+        <Tabs
+          tabs={[
+            { id: 'editor', label: 'Editor' },
+            { id: 'generate', label: 'AI Generate' },
+          ]}
+          active={activeTab}
+          onChange={(id) => { setActiveTab(id); sounds.click() }}
+        />
+      </div>
+
+      {activeTab === 'generate' ? (
+        <Card className="p-6">
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-2">
+              <img src="./ai.png" alt="AI" className="w-10 h-10 rounded-xl object-contain" />
+              <div>
+                <h3 className="text-sm font-bold text-slate-700">AI Timetable Generation</h3>
+                <p className="text-xs text-slate-500">Auto-fill timetables with intelligent constraint solving</p>
+              </div>
+            </div>
+
+            {!genCheck.canGenerate ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <p className="text-sm font-semibold text-amber-800 mb-2">Not ready to generate:</p>
+                <ul className="space-y-1">
+                  {genCheck.issues.map((issue, i) => (
+                    <li key={i} className="text-xs text-amber-700">• {issue}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-brand-50 border border-brand-200 rounded-lg p-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+                    <div><span className="text-slate-500">Teachers:</span> <span className="font-bold text-slate-800">{state.teachers.length}</span></div>
+                    <div><span className="text-slate-500">Classes:</span> <span className="font-bold text-slate-800">{state.classes.length}</span></div>
+                    <div><span className="text-slate-500">Subjects:</span> <span className="font-bold text-slate-800">{state.subjects.length}</span></div>
+                    <div><span className="text-slate-500">Rooms:</span> <span className="font-bold text-slate-800">{state.rooms.length}</span></div>
+                    <div><span className="text-slate-500">Days:</span> <span className="font-bold text-slate-800">{schedule.days.length}</span></div>
+                    <div><span className="text-slate-500">Periods:</span> <span className="font-bold text-slate-800">{teachingPeriods.length}</span></div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    variant="success"
+                    disabled={!genCheck.canGenerate || !selectedClass}
+                    onClick={() => handleGenerateClick('single')}
+                    className="flex-1"
+                  >
+                    <span className="flex items-center justify-center gap-1.5">
+                      <img src="./ai.png" alt="AI" className="w-4 h-4 object-contain" />
+                      Generate for {state.classes.find(c => c.id === selectedClass)?.name || 'Selected Class'}
+                    </span>
+                  </Button>
+                  <Button
+                    variant="primary"
+                    disabled={!genCheck.canGenerate}
+                    onClick={() => handleGenerateClick('bulk')}
+                    className="flex-1"
+                  >
+                    Generate All {state.classes.length} Classes
+                  </Button>
+                </div>
+
+                {!selectedClass && (
+                  <p className="text-xs text-slate-400 text-center">Select a class above to generate for a single class, or generate for all classes.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </Card>
+      ) : !selectedClass ? (
         <Card className="p-6">
           <EmptyState
             icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
@@ -322,7 +385,17 @@ export default function TimetableEditor({ navigate }) {
                       >
                         {display ? (
                           <div className="text-center">
-                            <p className="text-xs font-semibold text-slate-800">{display.subject?.name || '—'}</p>
+                            <div className="flex items-center justify-center gap-1">
+                              <p className="text-xs font-semibold text-slate-800">{display.subject?.name || '—'}</p>
+                              {display.entry.lessonLength > 1 && (
+                                <span className="text-[9px] font-bold text-brand-600 bg-brand-100 rounded px-1">{display.entry.lessonLength}x</span>
+                              )}
+                              {state.lockedEntries?.includes(display.entry.id) && (
+                                <svg className="w-3 h-3 text-amber-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
+                              )}
+                            </div>
                             <p className="text-[10px] text-slate-500">{display.teacher?.name || '—'}</p>
                             {display.room && <p className="text-[10px] text-slate-400">{display.room.name}</p>}
                             {display.secondaryClass && (
@@ -393,7 +466,7 @@ export default function TimetableEditor({ navigate }) {
 
           <div className="bg-slate-50 rounded-lg p-3">
             <p className="text-xs font-semibold text-slate-600 mb-2">System Data:</p>
-            <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600">
               <div>Teachers: <span className="font-bold">{state.teachers.length}</span></div>
               <div>Classes: <span className="font-bold">{state.classes.length}</span></div>
               <div>Subjects: <span className="font-bold">{state.subjects.length}</span></div>
@@ -518,6 +591,49 @@ export default function TimetableEditor({ navigate }) {
             </select>
           </div>
 
+          {/* Lesson Length */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Lesson Length</label>
+            <div className="flex gap-2">
+              {[
+                { value: 1, label: 'Single' },
+                { value: 2, label: 'Double' },
+                { value: 3, label: 'Triple' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => { setForm({ ...form, lessonLength: opt.value }); sounds.click() }}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition-all ${
+                    form.lessonLength === opt.value
+                      ? 'border-brand-600 bg-brand-50 text-brand-700'
+                      : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Double/triple lessons occupy consecutive periods automatically.</p>
+          </div>
+
+          {/* Lesson Groups */}
+          {state.lessonGroups.filter(lg => lg.classId === selectedClass).length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Lesson Group</label>
+              <select
+                value={form.lessonGroupId}
+                onChange={e => { setForm({ ...form, lessonGroupId: e.target.value }); sounds.click() }}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+              >
+                <option value="">No group (whole class)</option>
+                {state.lessonGroups.filter(lg => lg.classId === selectedClass).map(lg => (
+                  <option key={lg.id} value={lg.id}>{lg.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Secondary Class for Optional Subjects */}
           {(() => {
             const selectedSubject = state.subjects.find(s => s.id === form.subjectId)
@@ -578,7 +694,18 @@ export default function TimetableEditor({ navigate }) {
           })()}
 
           <div className="flex justify-between pt-2">
-            <Button variant="danger" size="sm" onClick={handleClear}>Clear Cell</Button>
+            <div className="flex gap-2">
+              <Button variant="danger" size="sm" onClick={handleClear}>Clear Cell</Button>
+              {cellModal?.existing && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => { dispatch({ type: 'TOGGLE_LOCK_ENTRY', payload: cellModal.existing.id }); sounds.click(); setCellModal(null) }}
+                >
+                  {state.lockedEntries?.includes(cellModal.existing.id) ? 'Unlock' : 'Lock'}
+                </Button>
+              )}
+            </div>
             <div className="flex gap-3">
               <Button variant="secondary" onClick={() => setCellModal(null)}>Cancel</Button>
               <Button onClick={handleSave}>Save</Button>

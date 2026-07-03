@@ -11,12 +11,23 @@ import Dashboard from './pages/Dashboard.jsx'
 import ManageTeachers from './pages/ManageTeachers.jsx'
 import ManageClasses from './pages/ManageClasses.jsx'
 import ManageSubjects from './pages/ManageSubjects.jsx'
-import ManageRooms from './pages/ManageRooms.jsx'
 import TimetableEditor from './pages/TimetableEditor.jsx'
 import SmartGenerate from './pages/SmartGenerate.jsx'
 import ViewTimetables from './pages/ViewTimetables.jsx'
 import Settings from './pages/Settings.jsx'
 import Documentation from './pages/Documentation.jsx'
+import Departments from './pages/Departments.jsx'
+import TeacherConstraints from './pages/TeacherConstraints.jsx'
+import CardRelationships from './pages/CardRelationships.jsx'
+import PrintPreview from './pages/PrintPreview.jsx'
+import Statistics from './pages/Statistics.jsx'
+import TimetableVerification from './pages/TimetableVerification.jsx'
+import Substitutions from './pages/Substitutions.jsx'
+import LessonGroups from './pages/LessonGroups.jsx'
+import Pupils from './pages/Pupils.jsx'
+import SubjectAssignments from './pages/SubjectAssignments.jsx'
+import ManageRooms from './pages/ManageRooms.jsx'
+import CompareTimetables from './pages/CompareTimetables.jsx'
 
 function UndoToast() {
   const { state, dispatch } = useApp()
@@ -90,6 +101,10 @@ export default function App() {
   const [loadProgress, setLoadProgress] = useState(0)
   const [showDocs, setShowDocs] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
 
   useEffect(() => {
     const duration = 800
@@ -168,6 +183,13 @@ export default function App() {
     }
   }, [])
 
+  const TeachersPage = ManageTeachers
+  const ClassesPage = ManageClasses
+  const SubjectsPage = ManageSubjects
+  const DepartmentsPage = Departments
+  const GeneratePage = SmartGenerate
+  const ViewPage = ViewTimetables
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-gradient-to-br from-brand-50 via-white to-brand-50">
@@ -202,22 +224,110 @@ export default function App() {
 
   const pages = {
     dashboard: <Dashboard navigate={navigate} />,
-    teachers: <ManageTeachers />,
-    classes: <ManageClasses />,
-    subjects: <ManageSubjects />,
-    rooms: <ManageRooms />,
+    teachers: <TeachersPage navigate={navigate} />,
+    classes: <ClassesPage navigate={navigate} />,
+    subjects: <SubjectsPage navigate={navigate} />,
+    departments: <DepartmentsPage navigate={navigate} />,
     editor: <TimetableEditor navigate={navigate} />,
-    generate: <SmartGenerate navigate={navigate} />,
-    view: <ViewTimetables navigate={navigate} />,
+    generate: <GeneratePage navigate={navigate} />,
+    view: <ViewPage navigate={navigate} />,
     settings: <Settings />,
   }
 
   return (
     <div className="flex h-screen bg-slate-50">
       <StorageWarningBanner />
-      <Sidebar current={page} navigate={navigate} />
-      <div className="flex-1 overflow-auto">
-        {pages[page]}
+      <Sidebar
+        current={page}
+        navigate={navigate}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(v => !v)}
+        mobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
+      />
+      <div className="flex-1 overflow-auto flex flex-col min-w-0">
+        {/* Header bar */}
+        <div className="sticky top-0 z-30 bg-white border-b border-slate-200 px-3 md:px-6 py-2.5 flex items-center gap-3">
+          {/* Mobile hamburger menu */}
+          <button
+            onClick={() => { sounds.click(); setMobileSidebarOpen(true) }}
+            className="md:hidden p-2 -ml-1 text-slate-600 hover:text-brand-600 hover:bg-slate-50 rounded-lg transition-colors"
+            title="Open menu"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+
+          {/* Logo + App Name */}
+          <div className="flex items-center gap-2.5 flex-shrink-0">
+            {state.school?.logo ? (
+              <img src={state.school.logo} alt="School logo" className="w-8 h-8 rounded-lg object-contain bg-white border border-slate-200" />
+            ) : (
+              <img src="./logo.png" alt="Shikola logo" className="w-8 h-8 rounded-lg object-contain" />
+            )}
+            <div className="hidden sm:block">
+              <h1 className="text-sm font-bold text-slate-800 leading-tight">Shikola</h1>
+              <p className="text-[10px] text-slate-500 leading-tight">Timetable Creator</p>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="relative flex-1 max-w-md hidden md:block">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search teachers, classes, subjects, rooms..."
+              className="w-full pl-9 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+
+          {/* Mobile search toggle */}
+          <button
+            onClick={() => { sounds.click(); setMobileSearchOpen(v => !v) }}
+            className="md:hidden p-2 text-slate-600 hover:text-brand-600 hover:bg-slate-50 rounded-lg transition-colors"
+            title="Search"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </button>
+
+          <span className="text-xs text-slate-400 hidden sm:inline">{page === 'dashboard' ? 'Dashboard' : page.charAt(0).toUpperCase() + page.slice(1)}</span>
+        </div>
+
+        {/* Mobile search bar (expandable) */}
+        {mobileSearchOpen && (
+          <div className="md:hidden px-3 py-2 bg-white border-b border-slate-200">
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search..."
+                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
+                autoFocus
+              />
+            </div>
+          </div>
+        )}
+        <div className="flex-1 overflow-auto">
+          {pages[page]}
+        </div>
       </div>
       <UndoToast />
 
