@@ -11,7 +11,7 @@ import PrintPreview from './PrintPreview.jsx'
 const PAPER_SIZES = ['a4', 'a3', 'a2', 'a1']
 const ORIENTATIONS = ['portrait', 'landscape']
 
-export default function ViewTimetables({ navigate }) {
+export default function ViewTimetables({ navigate, searchQuery }) {
   const { state, dispatch } = useApp()
   const [viewType, setViewType] = useState('class')
   const [selectedId, setSelectedId] = useState('')
@@ -217,7 +217,7 @@ export default function ViewTimetables({ navigate }) {
   }
 
   const buildBulkItems = () => {
-    let sourceList = bulkType === 'classes' ? state.classes : state.teachers
+    let sourceList = bulkType === 'classes' ? state.classes : bulkType === 'teachers' ? state.teachers : state.departments
     if (sectionFilter && bulkType === 'classes') {
       sourceList = sourceList.filter(c => c.sectionId === sectionFilter)
     }
@@ -225,6 +225,22 @@ export default function ViewTimetables({ navigate }) {
       ? sourceList.filter(item => selectedBulkIds.includes(item.id))
       : sourceList
     return filtered.map(item => {
+      if (bulkType === 'departments') {
+        const deptTeachers = state.teachers.filter(t => t.departmentId === item.id)
+        const deptTeacherIds = new Set(deptTeachers.map(t => t.id))
+        const entries = state.timetable.filter(e => deptTeacherIds.has(e.teacherId) || deptTeacherIds.has(e.secondaryTeacherId))
+        const deptMasterData = entries.map(e => ({
+          ...e,
+          teacherName: state.teachers.find(t => t.id === e.teacherId)?.name || '',
+          className: state.classes.find(c => c.id === e.classId)?.name || '',
+          subjectName: state.subjects.find(s => s.id === e.subjectId)?.name || '',
+          roomName: state.rooms.find(r => r.id === e.roomId)?.name || '',
+          secondaryClassName: e.secondaryClassId ? state.classes.find(c => c.id === e.secondaryClassId)?.name || '' : '',
+          secondarySubjectName: e.secondarySubjectId ? state.subjects.find(s => s.id === e.secondarySubjectId)?.name || '' : '',
+          secondaryTeacherName: e.secondaryTeacherId ? state.teachers.find(t => t.id === e.secondaryTeacherId)?.name || '' : '',
+        }))
+        return { ...item, deptMasterData, schedule: activeSchedule }
+      }
       const itemSchedule = bulkType === 'classes' ? getScheduleForClass(state, item.id) : activeSchedule
       const entries = bulkType === 'classes'
         ? state.timetable.filter(e => e.classId === item.id)
@@ -313,7 +329,7 @@ export default function ViewTimetables({ navigate }) {
   }
 
   const toggleAllBulk = () => {
-    const sourceList = bulkType === 'classes' ? state.classes : state.teachers
+    const sourceList = bulkType === 'classes' ? state.classes : bulkType === 'teachers' ? state.teachers : state.departments
     sounds.click()
     if (selectedBulkIds.length === sourceList.length) {
       setSelectedBulkIds([])
@@ -333,7 +349,8 @@ export default function ViewTimetables({ navigate }) {
     : bulkType === 'classes' ? state.classes
     : bulkType === 'teachers' && departmentFilter
     ? state.teachers.filter(t => t.departmentId === departmentFilter)
-    : bulkType === 'teachers' ? state.teachers : state.teachers
+    : bulkType === 'teachers' ? state.teachers
+    : bulkType === 'departments' ? state.departments : state.departments
 
   if (loading) {
     return (
@@ -439,6 +456,7 @@ export default function ViewTimetables({ navigate }) {
                 >
                   <option value="classes">All Class Timetables</option>
                   <option value="teachers">All Teacher Timetables</option>
+                  {state.departments.length > 0 && <option value="departments">All Department Timetables</option>}
                 </select>
               </div>
               {state.sections.length > 0 && bulkType === 'classes' && (
@@ -505,7 +523,7 @@ export default function ViewTimetables({ navigate }) {
           <Card className="p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-slate-700">
-                Select {bulkType === 'classes' ? 'Classes' : 'Teachers'} to Export
+                Select {bulkType === 'classes' ? 'Classes' : bulkType === 'teachers' ? 'Teachers' : 'Departments'} to Export
               </h3>
               <button
                 onClick={toggleAllBulk}

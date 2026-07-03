@@ -96,13 +96,13 @@ function StorageWarningBanner() {
 
 export default function App() {
   const { state, dispatch } = useApp()
-  const [page, setPage] = useState('dashboard')
+  const [page, setPage] = useState(() => localStorage.getItem('shikola-current-page') || 'home')
   const [loading, setLoading] = useState(true)
   const [loadProgress, setLoadProgress] = useState(0)
   const [showDocs, setShowDocs] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('shikola-sidebar-collapsed') === 'true')
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
 
@@ -120,6 +120,14 @@ export default function App() {
     }, duration)
     return () => { clearInterval(interval); clearTimeout(timer) }
   }, [])
+
+  useEffect(() => {
+    localStorage.setItem('shikola-current-page', page)
+  }, [page])
+
+  useEffect(() => {
+    localStorage.setItem('shikola-sidebar-collapsed', sidebarCollapsed)
+  }, [sidebarCollapsed])
 
   useEffect(() => {
     const { primaryColor, accentColor } = state.appearance || {}
@@ -223,15 +231,15 @@ export default function App() {
   }
 
   const pages = {
-    dashboard: <Dashboard navigate={navigate} />,
-    teachers: <TeachersPage navigate={navigate} />,
-    classes: <ClassesPage navigate={navigate} />,
-    subjects: <SubjectsPage navigate={navigate} />,
-    departments: <DepartmentsPage navigate={navigate} />,
-    editor: <TimetableEditor navigate={navigate} />,
-    generate: <GeneratePage navigate={navigate} />,
-    view: <ViewPage navigate={navigate} />,
-    settings: <Settings />,
+    home: <Dashboard navigate={navigate} searchQuery={searchQuery} />,
+    teachers: <TeachersPage navigate={navigate} searchQuery={searchQuery} />,
+    classes: <ClassesPage navigate={navigate} searchQuery={searchQuery} />,
+    subjects: <SubjectsPage navigate={navigate} searchQuery={searchQuery} />,
+    departments: <DepartmentsPage navigate={navigate} searchQuery={searchQuery} />,
+    editor: <TimetableEditor navigate={navigate} searchQuery={searchQuery} />,
+    generate: <GeneratePage navigate={navigate} searchQuery={searchQuery} />,
+    view: <ViewPage navigate={navigate} searchQuery={searchQuery} />,
+    settings: <Settings searchQuery={searchQuery} />,
   }
 
   return (
@@ -261,11 +269,7 @@ export default function App() {
 
           {/* Logo + App Name */}
           <div className="flex items-center gap-2.5 flex-shrink-0">
-            {state.school?.logo ? (
-              <img src={state.school.logo} alt="School logo" className="w-8 h-8 rounded-lg object-contain bg-white border border-slate-200" />
-            ) : (
-              <img src="./logo.png" alt="Shikola logo" className="w-8 h-8 rounded-lg object-contain" />
-            )}
+            <img src="./logo.png" alt="Shikola logo" className="w-8 h-8 rounded-lg object-contain" />
             <div className="hidden sm:block">
               <h1 className="text-sm font-bold text-slate-800 leading-tight">Shikola</h1>
               <p className="text-[10px] text-slate-500 leading-tight">Timetable Creator</p>
@@ -304,7 +308,7 @@ export default function App() {
             </svg>
           </button>
 
-          <span className="text-xs text-slate-400 hidden sm:inline">{page === 'dashboard' ? 'Dashboard' : page.charAt(0).toUpperCase() + page.slice(1)}</span>
+          <span className="text-xs text-slate-400 hidden sm:inline">{page === 'home' ? 'Home' : page.charAt(0).toUpperCase() + page.slice(1)}</span>
         </div>
 
         {/* Mobile search bar (expandable) */}

@@ -194,7 +194,7 @@ export default function TeacherConstraints({ embedded, onBack, navigate }) {
                     <div className="flex flex-wrap gap-2">
                       {constraints.maxLessonsPerDay && <Badge color="blue">Max {constraints.maxLessonsPerDay} lessons/day</Badge>}
                       {constraints.minLessonsPerDay && <Badge color="green">Min {constraints.minLessonsPerDay} lessons/day</Badge>}
-                      {constraints.maxTeachingDays && <Badge color="purple">Max {constraints.maxTeachingDays} teaching days</Badge>}
+                      {constraints.maxTeachingDays && <Badge color="indigo">Max {constraints.maxTeachingDays} teaching days</Badge>}
                       {constraints.maxConsecutivePeriods && <Badge color="amber">Max {constraints.maxConsecutivePeriods} consecutive</Badge>}
                       {constraints.maxGapsPerWeek !== undefined && <Badge color="slate">Max {constraints.maxGapsPerWeek} gaps/week</Badge>}
                     </div>

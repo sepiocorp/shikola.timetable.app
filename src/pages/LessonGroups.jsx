@@ -3,8 +3,12 @@ import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
 import { Button, Input, Card, PageHeader, Modal, EmptyState, Badge } from '../components/UI.jsx'
 
-const LessonGroups = forwardRef(function LessonGroups({ embedded, onBack }, ref) {
+const LessonGroups = forwardRef(function LessonGroups({ embedded, onBack, searchQuery }, ref) {
   const { state, dispatch } = useApp()
+
+  const filteredGroups = state.lessonGroups.filter(group =>
+    group.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({ classId: '', name: '', groups: [] })
@@ -92,7 +96,15 @@ const LessonGroups = forwardRef(function LessonGroups({ embedded, onBack }, ref)
         />
       ) : null}
 
-      {state.lessonGroups.length === 0 ? (
+      {filteredGroups.length === 0 && searchQuery ? (
+        <Card className="p-6">
+          <EmptyState
+            icon="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            title="No divisions found"
+            subtitle={`No divisions match "${searchQuery}"`}
+          />
+        </Card>
+      ) : filteredGroups.length === 0 ? (
         <Card className="p-6">
           <EmptyState
             icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
@@ -103,7 +115,7 @@ const LessonGroups = forwardRef(function LessonGroups({ embedded, onBack }, ref)
         </Card>
       ) : (
         <div className="space-y-3">
-          {state.lessonGroups.map(lg => (
+          {filteredGroups.map(lg => (
             <Card key={lg.id} className="p-4">
               <div className="flex items-start justify-between">
                 <div className="flex-1">

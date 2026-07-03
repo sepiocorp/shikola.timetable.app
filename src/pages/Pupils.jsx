@@ -4,25 +4,29 @@ import { sounds } from '../utils/sounds.js'
 import { Button, Input, Card, PageHeader, Modal, EmptyState, Badge } from '../components/UI.jsx'
 import BulkImportModal from '../components/BulkImportModal.jsx'
 
-const Pupils = forwardRef(function Pupils({ embedded, onBack }, ref) {
+const Pupils = forwardRef(function Pupils({ embedded, onBack, searchQuery }, ref) {
   const { state, dispatch } = useApp()
+
+  const filteredPupils = state.pupils.filter(pupil =>
+    pupil.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
   const [modalOpen, setModalOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ name: '', classId: '', email: '', phone: '', subjects: [] })
+  const [form, setForm] = useState({ name: '', classId: '', address: '', phone: '', subjects: [] })
 
   useImperativeHandle(ref, () => ({ openAdd, openBulkImport: () => { sounds.click(); setBulkOpen(true) } }))
 
   const openAdd = () => {
     setEditing(null)
-    setForm({ name: '', classId: '', email: '', phone: '', subjects: [] })
+    setForm({ name: '', classId: '', address: '', phone: '', subjects: [] })
     sounds.click()
     setModalOpen(true)
   }
 
   const openEdit = (pupil) => {
     setEditing(pupil)
-    setForm({ name: pupil.name, classId: pupil.classId || '', email: pupil.email || '', phone: pupil.phone || '', subjects: pupil.subjects || [] })
+    setForm({ name: pupil.name, classId: pupil.classId || '', address: pupil.address || '', phone: pupil.phone || '', subjects: pupil.subjects || [] })
     sounds.click()
     setModalOpen(true)
   }
@@ -58,6 +62,13 @@ const Pupils = forwardRef(function Pupils({ embedded, onBack }, ref) {
 
   const getClassName = (id) => id ? state.classes.find(c => c.id === id)?.name || 'Unknown' : '—'
   const getSubjectName = (id) => state.subjects.find(s => s.id === id)?.name || 'Unknown'
+  
+  const getAvailableSubjects = () => {
+    if (!form.classId) return []
+    return state.subjects.filter(subject => 
+      !subject.classId || subject.classId === form.classId
+    )
+  }
 
   return (
     <div className="p-4 md:p-8">
@@ -74,7 +85,15 @@ const Pupils = forwardRef(function Pupils({ embedded, onBack }, ref) {
         />
       ) : null}
 
-      {state.pupils.length === 0 ? (
+      {filteredPupils.length === 0 && searchQuery ? (
+        <Card className="p-6">
+          <EmptyState
+            icon="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            title="No pupils found"
+            subtitle={`No pupils match "${searchQuery}"`}
+          />
+        </Card>
+      ) : filteredPupils.length === 0 ? (
         <Card className="p-6">
           <EmptyState
             icon="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222"
@@ -85,7 +104,7 @@ const Pupils = forwardRef(function Pupils({ embedded, onBack }, ref) {
         </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {state.pupils.map(pupil => (
+          {filteredPupils.map(pupil => (
             <Card key={pupil.id} className="p-5">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -113,7 +132,7 @@ const Pupils = forwardRef(function Pupils({ embedded, onBack }, ref) {
                 </div>
               </div>
               <div className="mt-3 space-y-1">
-                {pupil.email && <p className="text-xs text-slate-500">{pupil.email}</p>}
+                {pupil.address && <p className="text-xs text-slate-500">{pupil.address}</p>}
                 {pupil.phone && <p className="text-xs text-slate-500">{pupil.phone}</p>}
                 {pupil.subjects && pupil.subjects.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
@@ -144,14 +163,14 @@ const Pupils = forwardRef(function Pupils({ embedded, onBack }, ref) {
             </select>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input label="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="pupil@school.com" />
+            <Input label="Address" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="Home address" />
             <Input label="Phone" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="Phone number" />
           </div>
-          {state.subjects.length > 0 && (
+          {getAvailableSubjects().length > 0 && (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">Subject Choices</label>
               <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border border-slate-200 rounded-lg">
-                {state.subjects.map(subject => (
+                {getAvailableSubjects().map(subject => (
                   <button
                     key={subject.id}
                     onClick={() => toggleSubject(subject.id)}

@@ -4,7 +4,7 @@ import { sounds } from '../utils/sounds.js'
 import { Button, Select, Card, PageHeader, Modal, EmptyState, ProgressBar, Badge, Tabs } from '../components/UI.jsx'
 import { generateTimetable, canGenerate } from '../utils/generate.js'
 
-export default function TimetableEditor({ navigate }) {
+export default function TimetableEditor({ navigate, searchQuery }) {
   const { state, dispatch, checkConflicts } = useApp()
   const [selectedClass, setSelectedClass] = useState('')
   const [cellModal, setCellModal] = useState(null)

@@ -6,21 +6,25 @@ import BulkImportModal from '../components/BulkImportModal.jsx'
 import TeacherConstraints from './TeacherConstraints.jsx'
 import Substitutions from './Substitutions.jsx'
 
-export default function ManageTeachers({ navigate }) {
+export default function ManageTeachers({ navigate, searchQuery }) {
   const { state, dispatch } = useApp()
   const [activeTab, setActiveTab] = useState('teachers')
   const substitutionsRef = useRef(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ name: '', code: '', subjects: [], maxPeriods: 6, availability: {}, maxGapsPerWeek: 5, maxConsecutivePeriods: 4, maxLessonsPerDay: 8, minLessonsPerDay: 0, maxTeachingDays: 5 })
+  const [form, setForm] = useState({ name: '', subjects: [], classes: [], maxPeriods: 6, availability: {}, maxGapsPerWeek: 5, maxConsecutivePeriods: 4, maxLessonsPerDay: 8, minLessonsPerDay: 0, maxTeachingDays: 5 })
   const [showAvailability, setShowAvailability] = useState(false)
   const [showConstraints, setShowConstraints] = useState(false)
   const [viewMode, setViewMode] = useState('list')
 
+  const filteredTeachers = state.teachers.filter(teacher =>
+    teacher.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
   const openAdd = () => {
     setEditing(null)
-    setForm({ name: '', code: '', subjects: [], maxPeriods: 6, availability: {}, maxGapsPerWeek: 5, maxConsecutivePeriods: 4, maxLessonsPerDay: 8, minLessonsPerDay: 0, maxTeachingDays: 5 })
+    setForm({ name: '', subjects: [], classes: [], maxPeriods: 6, availability: {}, maxGapsPerWeek: 5, maxConsecutivePeriods: 4, maxLessonsPerDay: 8, minLessonsPerDay: 0, maxTeachingDays: 5 })
     setShowAvailability(false)
     setShowConstraints(false)
     sounds.click()
@@ -31,8 +35,8 @@ export default function ManageTeachers({ navigate }) {
     setEditing(teacher)
     setForm({
       name: teacher.name,
-      code: teacher.code || '',
       subjects: teacher.subjects || [],
+      classes: teacher.classes || [],
       maxPeriods: teacher.maxPeriods || 6,
       availability: teacher.availability || {},
       maxGapsPerWeek: teacher.maxGapsPerWeek ?? 5,
@@ -100,8 +104,22 @@ export default function ManageTeachers({ navigate }) {
     }))
   }
 
+  const toggleClass = (classId) => {
+    sounds.click()
+    setForm(f => ({
+      ...f,
+      classes: f.classes.includes(classId)
+        ? f.classes.filter(c => c !== classId)
+        : [...f.classes, classId],
+    }))
+  }
+
   const getSubjectNames = (ids) => {
     return ids.map(id => state.subjects.find(s => s.id === id)?.name).filter(Boolean)
+  }
+
+  const getClassNames = (ids) => {
+    return ids.map(id => state.classes.find(c => c.id === id)?.name).filter(Boolean)
   }
 
   return (
@@ -149,7 +167,15 @@ export default function ManageTeachers({ navigate }) {
         >Grid View</button>
       </div>
 
-      {state.teachers.length === 0 ? (
+      {filteredTeachers.length === 0 && searchQuery ? (
+        <Card className="p-6">
+          <EmptyState
+            icon="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            title="No teachers found"
+            subtitle={`No teachers match "${searchQuery}"`}
+          />
+        </Card>
+      ) : filteredTeachers.length === 0 ? (
         <Card className="p-6">
           <EmptyState
             icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
@@ -164,19 +190,21 @@ export default function ManageTeachers({ navigate }) {
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Teacher</th>
-                <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Code</th>
                 <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Subjects</th>
+                <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Classes</th>
                 <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Max Periods</th>
                 <th className="text-right text-xs font-bold text-slate-600 px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {state.teachers.map(teacher => (
+              {filteredTeachers.map(teacher => (
                 <tr key={teacher.id} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="px-4 py-3 text-sm font-semibold text-slate-800">{teacher.name}</td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{teacher.code || '—'}</td>
                   <td className="px-4 py-3 text-xs text-slate-600">
                     {teacher.subjects?.length > 0 ? getSubjectNames(teacher.subjects).join(', ') : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-600">
+                    {teacher.classes?.length > 0 ? getClassNames(teacher.classes).join(', ') : '—'}
                   </td>
                   <td className="px-4 py-3 text-center text-sm text-slate-600">{teacher.maxPeriods || 6}</td>
                   <td className="px-4 py-3 text-right">
@@ -198,7 +226,7 @@ export default function ManageTeachers({ navigate }) {
         </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {state.teachers.map(teacher => (
+          {filteredTeachers.map(teacher => (
             <Card key={teacher.id} className="p-5">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -209,7 +237,6 @@ export default function ManageTeachers({ navigate }) {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-slate-800">{teacher.name}</p>
-                    {teacher.code && <p className="text-xs text-slate-500">Code: {teacher.code}</p>}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -234,6 +261,15 @@ export default function ManageTeachers({ navigate }) {
                   <span className="text-xs text-slate-400">No subjects assigned</span>
                 )}
               </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {teacher.classes?.length > 0 ? (
+                  getClassNames(teacher.classes).map(name => (
+                    <Badge key={name} color="green">{name}</Badge>
+                  ))
+                ) : (
+                  <span className="text-xs text-slate-400">No classes assigned</span>
+                )}
+              </div>
               <p className="text-xs text-slate-400 mt-2">Max {teacher.maxPeriods || 6} periods/day</p>
               {(teacher.maxGapsPerWeek != null && teacher.maxGapsPerWeek !== 5 || teacher.maxConsecutivePeriods != null && teacher.maxConsecutivePeriods !== 4 || teacher.maxTeachingDays != null && teacher.maxTeachingDays !== 5) && (
                 <div className="mt-2 flex flex-wrap gap-1">
@@ -253,7 +289,6 @@ export default function ManageTeachers({ navigate }) {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Teacher' : 'Add Teacher'}>
         <div className="space-y-4">
           <Input label="Full Name *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Enter full name" />
-          <Input label="Teacher Code" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="Enter teacher code" />
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Subjects</label>
             <div className="flex flex-wrap gap-2">
@@ -271,6 +306,28 @@ export default function ManageTeachers({ navigate }) {
                     }`}
                   >
                     {subject.name}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Classes</label>
+            <div className="flex flex-wrap gap-2">
+              {state.classes.length === 0 ? (
+                <p className="text-sm text-slate-400">No classes added yet. Add classes first.</p>
+              ) : (
+                state.classes.map(cls => (
+                  <button
+                    key={cls.id}
+                    onClick={() => toggleClass(cls.id)}
+                    className={`px-3 py-1.5 rounded-lg text-sm border-2 transition-all ${
+                      form.classes.includes(cls.id)
+                        ? 'border-green-600 bg-green-50 text-green-700'
+                        : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    {cls.name}
                   </button>
                 ))
               )}

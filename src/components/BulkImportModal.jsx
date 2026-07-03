@@ -8,7 +8,7 @@ const CONFIG = {
   teachers: {
     title: 'Bulk Import Teachers',
     action: 'BULK_ADD_TEACHERS',
-    columns: ['name', 'code', 'subjects', 'maxPeriods'],
+    columns: ['name', 'subjects', 'classes', 'maxPeriods'],
     required: ['name'],
   },
   classes: {
@@ -74,23 +74,39 @@ export default function BulkImportModal({ open, onClose, type }) {
         if (type === 'teachers') {
           const subjectNames = (row.subjects || '').split(';').map(s => s.trim()).filter(Boolean)
           const subjectIds = []
-          const unmatched = []
+          const subjectUnmatched = []
           for (const sName of subjectNames) {
             const subj = state.subjects.find(s => s.name.toLowerCase() === sName.toLowerCase())
             if (subj) {
               subjectIds.push(subj.id)
             } else {
-              unmatched.push(sName)
+              subjectUnmatched.push(sName)
             }
           }
-          if (unmatched.length > 0) {
-            rowErrors.push(`Row ${idx + 2}: subjects not found: ${unmatched.join(', ')}`)
+          if (subjectUnmatched.length > 0) {
+            rowErrors.push(`Row ${idx + 2}: subjects not found: ${subjectUnmatched.join(', ')}`)
           }
+
+          const classNames = (row.classes || '').split(';').map(c => c.trim()).filter(Boolean)
+          const classIds = []
+          const classUnmatched = []
+          for (const cName of classNames) {
+            const cls = state.classes.find(c => c.name.toLowerCase() === cName.toLowerCase())
+            if (cls) {
+              classIds.push(cls.id)
+            } else {
+              classUnmatched.push(cName)
+            }
+          }
+          if (classUnmatched.length > 0) {
+            rowErrors.push(`Row ${idx + 2}: classes not found: ${classUnmatched.join(', ')}`)
+          }
+
           if (rowErrors.length === 0) {
             valid.push({
               name: row.name.trim(),
-              code: (row.code || '').trim(),
               subjects: subjectIds,
+              classes: classIds,
               maxPeriods: Number(row.maxPeriods) || 6,
             })
           }
@@ -256,6 +272,11 @@ export default function BulkImportModal({ open, onClose, type }) {
                         if (col === 'subjects' && type === 'teachers') {
                           display = (row[col] || [])
                             .map(id => state.subjects.find(s => s.id === id)?.name)
+                            .filter(Boolean).join('; ')
+                        }
+                        if (col === 'classes' && type === 'teachers') {
+                          display = (row[col] || [])
+                            .map(id => state.classes.find(c => c.id === id)?.name)
                             .filter(Boolean).join('; ')
                         }
                         if (col === 'classTeacher' && type === 'classes') {

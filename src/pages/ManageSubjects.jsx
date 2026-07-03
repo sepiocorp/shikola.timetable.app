@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
 import { Button, Input, Card, PageHeader, Modal, EmptyState, Tabs } from '../components/UI.jsx'
@@ -16,27 +16,46 @@ const COLORS = [
   { name: 'Indigo', value: '#6366f1' },
 ]
 
-export default function ManageSubjects({ navigate }) {
+export default function ManageSubjects({ navigate, searchQuery }) {
   const { state, dispatch } = useApp()
+
+  const filteredSubjects = state.subjects.filter(subject =>
+    subject.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
   const [activeTab, setActiveTab] = useState('subjects')
   const relationshipsRef = useRef(null)
   const assignmentsRef = useRef(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ name: '', code: '', color: '#3b82f6', classId: '', isOptional: false, secondaryClassId: '' })
+  const [form, setForm] = useState({ name: '', departmentId: '', color: '#3b82f6', classId: '', isOptional: false, secondarySubjectId: '' })
   const [viewMode, setViewMode] = useState('list')
+  const [newSubjectId, setNewSubjectId] = useState(null)
+  const [showAddSecondary, setShowAddSecondary] = useState(false)
+  const [newSecondaryName, setNewSecondaryName] = useState('')
+
+  // Watch for newly added subjects and auto-select as secondary subject
+  useEffect(() => {
+    if (newSubjectId === 'pending' && state.subjects.length > 0) {
+      // Get the last added subject
+      const lastSubject = state.subjects[state.subjects.length - 1]
+      if (lastSubject) {
+        setForm({ ...form, secondarySubjectId: lastSubject.id })
+        setNewSubjectId(null)
+      }
+    }
+  }, [state.subjects, newSubjectId, form])
 
   const openAdd = () => {
     setEditing(null)
-    setForm({ name: '', code: '', color: '#3b82f6', classId: '', isOptional: false, secondaryClassId: '' })
+    setForm({ name: '', departmentId: '', color: '#3b82f6', classId: '', isOptional: false, secondarySubjectId: '' })
     sounds.click()
     setModalOpen(true)
   }
 
   const openEdit = (subject) => {
     setEditing(subject)
-    setForm({ name: subject.name, code: subject.code || '', color: subject.color || '#3b82f6', classId: subject.classId || '', isOptional: subject.isOptional || false, secondaryClassId: subject.secondaryClassId || '' })
+    setForm({ name: subject.name, departmentId: subject.departmentId || '', color: subject.color || '#3b82f6', classId: subject.classId || '', isOptional: subject.isOptional || false, secondarySubjectId: subject.secondarySubjectId || '' })
     sounds.click()
     setModalOpen(true)
   }
@@ -108,7 +127,15 @@ export default function ManageSubjects({ navigate }) {
         >Grid View</button>
       </div>
 
-      {state.subjects.length === 0 ? (
+      {filteredSubjects.length === 0 && searchQuery ? (
+        <Card className="p-6">
+          <EmptyState
+            icon="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            title="No subjects found"
+            subtitle={`No subjects match "${searchQuery}"`}
+          />
+        </Card>
+      ) : filteredSubjects.length === 0 ? (
         <Card className="p-6">
           <EmptyState
             icon="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
@@ -123,14 +150,14 @@ export default function ManageSubjects({ navigate }) {
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Subject</th>
-                <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Code</th>
+                <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Department</th>
                 <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Class</th>
                 <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Optional</th>
                 <th className="text-right text-xs font-bold text-slate-600 px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {state.subjects.map(subject => (
+              {filteredSubjects.map(subject => (
                 <tr key={subject.id} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="px-4 py-3 text-sm font-semibold text-slate-800">
                     <span className="inline-flex items-center gap-2">
@@ -138,7 +165,7 @@ export default function ManageSubjects({ navigate }) {
                       {subject.name}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{subject.code || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-600">{subject.departmentId ? (state.departments.find(d => d.id === subject.departmentId)?.name || 'Unknown') : <span className="text-slate-300">—</span>}</td>
                   <td className="px-4 py-3 text-sm text-slate-600">{subject.classId ? (state.classes.find(c => c.id === subject.classId)?.name || 'Unknown') : <span className="text-slate-300">All</span>}</td>
                   <td className="px-4 py-3 text-center">{subject.isOptional ? <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">Optional</span> : <span className="text-slate-300">—</span>}</td>
                   <td className="px-4 py-3 text-right">
@@ -160,7 +187,7 @@ export default function ManageSubjects({ navigate }) {
         </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {state.subjects.map(subject => (
+          {filteredSubjects.map(subject => (
             <Card key={subject.id} className="p-5">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -171,16 +198,16 @@ export default function ManageSubjects({ navigate }) {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-slate-800">{subject.name}</p>
-                    {subject.code && <p className="text-xs text-slate-500">Code: {subject.code}</p>}
+                    {subject.departmentId && <p className="text-xs text-slate-500">Department: {state.departments.find(d => d.id === subject.departmentId)?.name || 'Unknown'}</p>}
                     {subject.classId && (
                       <p className="text-xs text-slate-500">Class: {state.classes.find(c => c.id === subject.classId)?.name || 'Unknown'}</p>
                     )}
                     {subject.isOptional && (
                       <div className="flex items-center gap-1 mt-1">
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">Optional</span>
-                        {subject.secondaryClassId && (
+                        {subject.secondarySubjectId && (
                           <span className="text-[10px] text-slate-500">
-                            → {state.classes.find(c => c.id === subject.secondaryClassId)?.name || 'Unknown'}
+                            → {state.subjects.find(s => s.id === subject.secondarySubjectId)?.name || 'Unknown'}
                           </span>
                         )}
                       </div>
@@ -208,7 +235,20 @@ export default function ManageSubjects({ navigate }) {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Subject' : 'Add Subject'}>
         <div className="space-y-4">
           <Input label="Subject Name *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Enter subject name" />
-          <Input label="Subject Code" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="Enter subject code" />
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
+            <select
+              value={form.departmentId}
+              onChange={e => { setForm({ ...form, departmentId: e.target.value }); sounds.click() }}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+            >
+              <option value="">-- No Department --</option>
+              {state.departments.map(d => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-400 mt-1">Assign this subject to a department (optional).</p>
+          </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Class</label>
             <select
@@ -244,28 +284,78 @@ export default function ManageSubjects({ navigate }) {
               <input
                 type="checkbox"
                 checked={form.isOptional}
-                onChange={e => { setForm({ ...form, isOptional: e.target.checked, secondaryClassId: e.target.checked ? form.secondaryClassId : '' }); sounds.click() }}
+                onChange={e => { setForm({ ...form, isOptional: e.target.checked, secondarySubjectId: e.target.checked ? form.secondarySubjectId : '' }); sounds.click() }}
                 className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
               />
               <div>
                 <p className="text-sm font-medium text-slate-700">Optional Subject</p>
-                <p className="text-xs text-slate-500">Mark if not all pupils take this subject. Specify a secondary class for the other group.</p>
+                <p className="text-xs text-slate-500">Mark if not all pupils take this subject. Specify a secondary subject for the other group.</p>
               </div>
             </label>
             {form.isOptional && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Secondary Class</label>
-                <select
-                  value={form.secondaryClassId}
-                  onChange={e => { setForm({ ...form, secondaryClassId: e.target.value }); sounds.click() }}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
-                >
-                  <option value="">-- Select Secondary Class --</option>
-                  {state.classes.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-400 mt-1">Pupils not taking this subject will attend the secondary class at the same time.</p>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Secondary Subject</label>
+                {!showAddSecondary ? (
+                  <div className="flex gap-2">
+                    <select
+                      value={form.secondarySubjectId}
+                      onChange={e => { 
+                        if (e.target.value === '__add_new__') {
+                          setShowAddSecondary(true)
+                          setNewSecondaryName('')
+                        } else {
+                          setForm({ ...form, secondarySubjectId: e.target.value })
+                        }
+                        sounds.click()
+                      }}
+                      className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                    >
+                      <option value="">-- Select Secondary Subject --</option>
+                      {state.subjects.filter(s => s.id !== editing?.id).map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                      <option value="__add_new__">+ Add new subject...</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Input
+                      label="New Subject Name"
+                      value={newSecondaryName}
+                      onChange={e => setNewSecondaryName(e.target.value)}
+                      placeholder="Enter subject name"
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => {
+                          if (newSecondaryName.trim()) {
+                            const newSubject = { name: newSecondaryName.trim(), color: form.color, departmentId: form.departmentId }
+                            dispatch({ type: 'ADD_SUBJECT', payload: newSubject })
+                            setNewSubjectId('pending')
+                            setShowAddSecondary(false)
+                            setNewSecondaryName('')
+                            sounds.add()
+                          }
+                        }}
+                        disabled={!newSecondaryName.trim()}
+                      >
+                        Add Subject
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setShowAddSecondary(false)
+                          setNewSecondaryName('')
+                          sounds.click()
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs text-slate-400 mt-1">Pupils not taking this subject will attend the secondary subject at the same time.</p>
               </div>
             )}
           </div>

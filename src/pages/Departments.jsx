@@ -3,8 +3,13 @@ import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
 import { Button, Input, Card, PageHeader, Modal, EmptyState, Badge, Tabs } from '../components/UI.jsx'
 
-export default function Departments() {
+export default function Departments({ searchQuery }) {
   const { state, dispatch } = useApp()
+
+  const filteredDepartments = state.departments.filter(dept =>
+    dept.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (dept.code && dept.code.toLowerCase().includes(searchQuery.toLowerCase()))
+  )
   const [tab, setTab] = useState('departments')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -95,7 +100,15 @@ export default function Departments() {
       </div>
 
       {tab === 'departments' ? (
-        state.departments.length === 0 ? (
+        filteredDepartments.length === 0 && searchQuery ? (
+          <Card className="p-6">
+            <EmptyState
+              icon="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              title="No departments found"
+              subtitle={`No departments match "${searchQuery}"`}
+            />
+          </Card>
+        ) : filteredDepartments.length === 0 ? (
           <Card className="p-6">
             <EmptyState
               icon="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
@@ -118,7 +131,7 @@ export default function Departments() {
                 </tr>
               </thead>
               <tbody>
-                {state.departments.map(dept => (
+                {filteredDepartments.map(dept => (
                   <tr key={dept.id} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className="px-4 py-3 text-sm font-semibold text-slate-800">{dept.name}</td>
                     <td className="px-4 py-3 text-sm text-slate-600">{dept.code || '—'}</td>
@@ -148,7 +161,7 @@ export default function Departments() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {state.departments.map(dept => (
+            {filteredDepartments.map(dept => (
               <Card key={dept.id} className="p-5">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
@@ -224,7 +237,7 @@ export default function Departments() {
                               className="px-2 py-1 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
                             >
                               <option value="">— None —</option>
-                              {state.departments.map(d => (
+                              {filteredDepartments.map(d => (
                                 <option key={d.id} value={d.id}>{d.name}</option>
                               ))}
                             </select>
@@ -264,7 +277,7 @@ export default function Departments() {
                               className="px-2 py-1 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
                             >
                               <option value="">— None —</option>
-                              {state.departments.map(d => (
+                              {filteredDepartments.map(d => (
                                 <option key={d.id} value={d.id}>{d.name}</option>
                               ))}
                             </select>

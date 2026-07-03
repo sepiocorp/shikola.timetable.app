@@ -161,7 +161,7 @@ function CustomFieldForm({ onAdd, state }) {
   )
 }
 
-export default function Settings() {
+export default function Settings({ searchQuery }) {
   const { state, dispatch } = useApp()
   const [schoolForm, setSchoolForm] = useState(state.school || {})
   const [periods, setPeriods] = useState(state.settings.periods)
@@ -826,11 +826,17 @@ export default function Settings() {
           <Card className="p-6 mb-6">
             <h3 className="text-sm font-bold text-slate-700 mb-4">Language</h3>
             <p className="text-xs text-slate-500 mb-4">Interface language preference.</p>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               {[
                 { code: 'en', label: 'English' },
-                { code: 'sw', label: 'Kiswahili' },
-                { code: 'fr', label: 'Français' },
+                { code: 'ch', label: 'Chokwe' },
+                { code: 'bem', label: 'Bemba' },
+                { code: 'ny', label: 'Nyanja' },
+                { code: 'loz', label: 'Lozi' },
+                { code: 'toi', label: 'Tonga' },
+                { code: 'kqn', label: 'Kaonde' },
+                { code: 'lue', label: 'Luvale' },
+                { code: 'lun', label: 'Lunda' },
               ].map(lang => (
                 <button
                   key={lang.code}
@@ -922,7 +928,7 @@ export default function Settings() {
               {state.customFields.map(field => (
                 <div key={field.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <Badge color="purple">{field.key}</Badge>
+                    <Badge color="indigo">{field.key}</Badge>
                     <div>
                       <p className="text-sm font-medium text-slate-700">{field.label}</p>
                       <p className="text-xs text-slate-500">{field.subjectId ? `Subject: ${state.subjects.find(s => s.id === field.subjectId)?.name || 'Unknown'}` : 'All subjects'} · {field.classId ? `Class: ${state.classes.find(c => c.id === field.classId)?.name || 'Unknown'}` : 'All classes'}</p>

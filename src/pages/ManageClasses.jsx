@@ -7,8 +7,14 @@ import Pupils from './Pupils.jsx'
 import ManageRooms from './ManageRooms.jsx'
 import LessonGroups from './LessonGroups.jsx'
 
-export default function ManageClasses() {
+export default function ManageClasses({ searchQuery }) {
   const { state, dispatch } = useApp()
+
+  const filteredClasses = state.classes.filter(cls =>
+    cls.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (cls.grade && cls.grade.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (cls.section && cls.section.toLowerCase().includes(searchQuery.toLowerCase()))
+  )
   const [activeTab, setActiveTab] = useState('classes')
   const pupilsRef = useRef(null)
   const roomsRef = useRef(null)
@@ -16,19 +22,20 @@ export default function ManageClasses() {
   const [modalOpen, setModalOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ name: '', grade: '', section: '', classTeacher: '', sectionId: '', isShared: false, sharedWith: '' })
+  const [form, setForm] = useState({ name: '', grade: '', section: '', classTeacher: '', sectionId: '', isShared: false, sharedWithTeachers: [] })
   const [viewMode, setViewMode] = useState('list')
+  const [teacherSearch, setTeacherSearch] = useState('')
 
   const openAdd = () => {
     setEditing(null)
-    setForm({ name: '', grade: '', section: '', classTeacher: '', sectionId: '', isShared: false, sharedWith: '' })
+    setForm({ name: '', grade: '', section: '', classTeacher: '', sectionId: '', isShared: false, sharedWithTeachers: [] })
     sounds.click()
     setModalOpen(true)
   }
 
   const openEdit = (cls) => {
     setEditing(cls)
-    setForm({ name: cls.name, grade: cls.grade || '', section: cls.section || '', classTeacher: cls.classTeacher || '', sectionId: cls.sectionId || '', isShared: cls.isShared || false, sharedWith: cls.sharedWith || '' })
+    setForm({ name: cls.name, grade: cls.grade || '', section: cls.section || '', classTeacher: cls.classTeacher || '', sectionId: cls.sectionId || '', isShared: cls.isShared || false, sharedWithTeachers: cls.sharedWithTeachers || [] })
     sounds.click()
     setModalOpen(true)
   }
@@ -55,6 +62,19 @@ export default function ManageClasses() {
   }
 
   const getTeacherName = (id) => state.teachers.find(t => t.id === id)?.name
+
+  const getSectionLabelOptions = () => {
+    const selectedSection = state.sections.find(s => s.id === form.sectionId)
+    const session = selectedSection?.session || 'full'
+    
+    // Return session type as the label
+    if (session === 'morning') {
+      return ['Morning']
+    } else if (session === 'afternoon') {
+      return ['Afternoon']
+    }
+    return ['Full Day']
+  }
 
   return (
     <div className="p-4 md:p-8">
@@ -91,11 +111,11 @@ export default function ManageClasses() {
       </div>
 
       {activeTab === 'pupils' ? (
-        <Pupils ref={pupilsRef} embedded />
+        <Pupils ref={pupilsRef} embedded searchQuery={searchQuery} />
       ) : activeTab === 'rooms' ? (
-        <ManageRooms ref={roomsRef} embedded />
+        <ManageRooms ref={roomsRef} embedded searchQuery={searchQuery} />
       ) : activeTab === 'lessonGroups' ? (
-        <LessonGroups ref={lessonGroupsRef} embedded />
+        <LessonGroups ref={lessonGroupsRef} embedded searchQuery={searchQuery} />
       ) : (
         <>
       <div className="mb-4 flex gap-2">
@@ -109,7 +129,15 @@ export default function ManageClasses() {
         >Grid View</button>
       </div>
 
-      {state.classes.length === 0 ? (
+      {filteredClasses.length === 0 && searchQuery ? (
+        <Card className="p-6">
+          <EmptyState
+            icon="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            title="No classes found"
+            subtitle={`No classes match "${searchQuery}"`}
+          />
+        </Card>
+      ) : filteredClasses.length === 0 ? (
         <Card className="p-6">
           <EmptyState
             icon="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
@@ -132,13 +160,29 @@ export default function ManageClasses() {
               </tr>
             </thead>
             <tbody>
-              {state.classes.map(cls => (
+              {filteredClasses.map(cls => (
                 <tr key={cls.id} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="px-4 py-3 text-sm font-semibold text-slate-800">{cls.name}</td>
                   <td className="px-4 py-3 text-sm text-slate-600">{cls.grade || '—'}</td>
                   <td className="px-4 py-3 text-sm text-slate-600">{cls.section || '—'}</td>
                   <td className="px-4 py-3 text-sm text-slate-600">{getTeacherName(cls.classTeacher) || '—'}</td>
-                  <td className="px-4 py-3 text-center">{cls.isShared ? <Badge color="amber">Shared</Badge> : <span className="text-slate-300">—</span>}</td>
+                  <td className="px-4 py-3 text-center">
+                    {cls.isShared && cls.sharedWithTeachers && cls.sharedWithTeachers.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 justify-center">
+                        {cls.sharedWithTeachers.slice(0, 2).map(tid => {
+                          const teacher = state.teachers.find(t => t.id === tid)
+                          return teacher ? (
+                            <Badge key={tid} color="amber" className="text-xs">{teacher.name.split(' ')[0]}</Badge>
+                          ) : null
+                        })}
+                        {cls.sharedWithTeachers.length > 2 && (
+                          <Badge color="slate" className="text-xs">+{cls.sharedWithTeachers.length - 2}</Badge>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-right">
                     <button onClick={() => openEdit(cls)} className="text-slate-400 hover:text-brand-600 mr-2">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -158,7 +202,7 @@ export default function ManageClasses() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {state.classes.map(cls => (
+          {filteredClasses.map(cls => (
             <Card key={cls.id} className="p-5">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -204,7 +248,16 @@ export default function ManageClasses() {
                 {cls.classTeacher && (
                   <p className="text-xs text-slate-500">Class Teacher: {getTeacherName(cls.classTeacher) || 'Unknown'}</p>
                 )}
-                {cls.isShared && <Badge color="amber">Shared Class</Badge>}
+                {cls.isShared && cls.sharedWithTeachers && cls.sharedWithTeachers.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {cls.sharedWithTeachers.map(tid => {
+                      const teacher = state.teachers.find(t => t.id === tid)
+                      return teacher ? (
+                        <Badge key={tid} color="amber" title="Student Teacher">{teacher.name}</Badge>
+                      ) : null
+                    })}
+                  </div>
+                )}
               </div>
             </Card>
           ))}
@@ -230,7 +283,19 @@ export default function ManageClasses() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="Grade" value={form.grade} onChange={e => setForm({ ...form, grade: e.target.value })} placeholder="Enter grade" />
-            <Input label="Section Label" value={form.section} onChange={e => setForm({ ...form, section: e.target.value })} placeholder="e.g., A, B" />
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Section Label</label>
+              <select
+                value={form.section}
+                onChange={e => setForm({ ...form, section: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+              >
+                <option value="">-- Select Label --</option>
+                {getSectionLabelOptions().map(label => (
+                  <option key={label} value={label}>{label}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Class Teacher</label>
@@ -248,23 +313,50 @@ export default function ManageClasses() {
           <div className="border border-slate-200 rounded-lg p-4 space-y-3">
             <Toggle
               checked={form.isShared}
-              onChange={(v) => { setForm({ ...form, isShared: v, sharedWith: v ? form.sharedWith : '' }); sounds.click() }}
+              onChange={(v) => { setForm({ ...form, isShared: v, sharedWithTeachers: v ? form.sharedWithTeachers : [] }); sounds.click() }}
               label="Shared Class (Student Teacher / Practicals)"
             />
-            <p className="text-xs text-slate-500">Mark if this class is shared with a student teacher for practicals.</p>
+            <p className="text-xs text-slate-500">Mark if this class is shared with student teachers for practicals.</p>
             {form.isShared && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Shared With (Class)</label>
-                <select
-                  value={form.sharedWith}
-                  onChange={e => { setForm({ ...form, sharedWith: e.target.value }); sounds.click() }}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
-                >
-                  <option value="">-- Select Class --</option>
-                  {state.classes.filter(c => c.id !== editing?.id).map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Shared With (Teachers)</label>
+                <input
+                  type="text"
+                  value={teacherSearch}
+                  onChange={e => setTeacherSearch(e.target.value)}
+                  placeholder="Search teachers..."
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 mb-2"
+                />
+                <div className="space-y-2 max-h-40 overflow-y-auto border border-slate-200 rounded-lg p-2">
+                  {state.teachers.filter(t => 
+                    t.name.toLowerCase().includes(teacherSearch.toLowerCase())
+                  ).map(t => (
+                    <label key={t.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 p-1 rounded">
+                      <input
+                        type="checkbox"
+                        checked={form.sharedWithTeachers.includes(t.id)}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            setForm({ ...form, sharedWithTeachers: [...form.sharedWithTeachers, t.id] })
+                          } else {
+                            setForm({ ...form, sharedWithTeachers: form.sharedWithTeachers.filter(id => id !== t.id) })
+                          }
+                          sounds.click()
+                        }}
+                        className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                      />
+                      <span className="text-slate-700">{t.name}</span>
+                    </label>
                   ))}
-                </select>
+                  {state.teachers.filter(t => 
+                    t.name.toLowerCase().includes(teacherSearch.toLowerCase())
+                  ).length === 0 && (
+                    <p className="text-xs text-slate-400 text-center py-2">No teachers found</p>
+                  )}
+                </div>
+                {form.sharedWithTeachers.length === 0 && (
+                  <p className="text-xs text-slate-400 mt-1">No teachers selected</p>
+                )}
               </div>
             )}
           </div>

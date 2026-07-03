@@ -3,7 +3,7 @@ import { useApp, getScheduleForClass } from '../store/AppContext.jsx'
 import { Card, PageHeader, Button, SkeletonCard, ProgressBar, Badge } from '../components/UI.jsx'
 import { sounds } from '../utils/sounds.js'
 
-export default function Dashboard({ navigate }) {
+export default function Dashboard({ navigate, searchQuery }) {
   const { state } = useApp()
   const [loading, setLoading] = useState(true)
 
@@ -62,7 +62,7 @@ export default function Dashboard({ navigate }) {
   if (loading) {
     return (
       <div className="p-4 md:p-8">
-        <PageHeader title="Dashboard" subtitle="Welcome to Shikola Timetable Creator" />
+        <PageHeader title="Home" subtitle="Welcome to Shikola Timetable Creator" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
@@ -77,7 +77,7 @@ export default function Dashboard({ navigate }) {
   return (
     <div className="p-4 md:p-8">
       <PageHeader
-        title="Dashboard"
+        title="Home"
         subtitle={`Welcome to ${state.school?.name || 'Shikola Timetable Creator'}`}
         action={activePeriod && <Badge color="blue">{activePeriod.name}</Badge>}
       />

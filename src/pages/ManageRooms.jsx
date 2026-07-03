@@ -3,8 +3,13 @@ import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
 import { Button, Input, Card, PageHeader, Modal, EmptyState, Badge, Toggle, Tabs } from '../components/UI.jsx'
 
-const ManageRooms = forwardRef(function ManageRooms({ embedded, onBack }, ref) {
+const ManageRooms = forwardRef(function ManageRooms({ embedded, onBack, searchQuery }, ref) {
   const { state, dispatch } = useApp()
+
+  const filteredRooms = state.rooms.filter(room =>
+    room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    room.type.toLowerCase().includes(searchQuery.toLowerCase())
+  )
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({ name: '', capacity: 30, type: 'Classroom', isShared: false })
@@ -162,7 +167,15 @@ const ManageRooms = forwardRef(function ManageRooms({ embedded, onBack }, ref) {
         >Grid View</button>
       </div>
 
-      {state.rooms.length === 0 ? (
+      {filteredRooms.length === 0 && searchQuery ? (
+        <Card className="p-6">
+          <EmptyState
+            icon="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            title="No rooms found"
+            subtitle={`No rooms match "${searchQuery}"`}
+          />
+        </Card>
+      ) : filteredRooms.length === 0 ? (
         <Card className="p-6">
           <EmptyState
             icon="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5"
@@ -184,7 +197,7 @@ const ManageRooms = forwardRef(function ManageRooms({ embedded, onBack }, ref) {
               </tr>
             </thead>
             <tbody>
-              {state.rooms.map(room => (
+              {filteredRooms.map(room => (
                 <tr key={room.id} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="px-4 py-3 text-sm font-semibold text-slate-800">{room.name}</td>
                   <td className="px-4 py-3 text-sm text-slate-600">{room.type}</td>
@@ -209,7 +222,7 @@ const ManageRooms = forwardRef(function ManageRooms({ embedded, onBack }, ref) {
         </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {state.rooms.map(room => (
+          {filteredRooms.map(room => (
             <Card key={room.id} className="p-5">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">

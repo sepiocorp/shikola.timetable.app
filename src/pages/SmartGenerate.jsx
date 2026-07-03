@@ -4,7 +4,7 @@ import { sounds } from '../utils/sounds.js'
 import { Button, Card, PageHeader, Modal, EmptyState, ProgressBar, Badge, Toggle, Checkbox, Tabs } from '../components/UI.jsx'
 import { generateTimetable, canGenerate } from '../utils/generate.js'
 
-export default function SmartGenerate({ navigate }) {
+export default function SmartGenerate({ navigate, searchQuery }) {
   const { state, dispatch } = useApp()
   const genCheck = canGenerate(state)
 

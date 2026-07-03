@@ -411,7 +411,7 @@ export function exportBulkPDF({ items, days, periods, school, paperSize, orienta
       startY = 22 + logoOffset
     }
 
-    const titlePrefix = bulkType === 'classes' ? 'Class' : 'Teacher'
+    const titlePrefix = bulkType === 'classes' ? 'Class' : bulkType === 'teachers' ? 'Teacher' : 'Department'
     pdf.setFontSize(12)
     pdf.setTextColor(30, 64, 175)
     pdf.text(`${titlePrefix}: ${item.name}`, pageW / 2, startY, { align: 'center' })
@@ -425,15 +425,42 @@ export function exportBulkPDF({ items, days, periods, school, paperSize, orienta
       startY += 5
     }
 
-    const head = [['Day / Period', ...teachingPeriods.map(p => p.name)]]
-    const body = itemDays.map(day => {
-      const row = [day]
-      for (const p of teachingPeriods) {
-        const cell = item.rows[day]?.[p.id]
-        row.push(cell || '—')
-      }
-      return row
-    })
+    let head, body
+    if (bulkType === 'departments') {
+      head = [['Day / Period', ...teachingPeriods.map(p => p.name)]]
+      body = itemDays.map(day => {
+        const row = [day]
+        for (const p of teachingPeriods) {
+          const entries = item.deptMasterData.filter(e => e.day === day && e.periodId === p.id)
+          if (entries.length === 0) {
+            row.push('—')
+          } else {
+            const cellText = entries.map(e => {
+              const teacher = e.teacherName || ''
+              const cls = e.className || ''
+              const subject = e.subjectName || ''
+              let line = `${teacher}: ${cls} - ${subject}`
+              if (e.secondaryClassName) {
+                line += `\n  → ${e.secondaryTeacherName || ''}: ${e.secondaryClassName} - ${e.secondarySubjectName || ''}`
+              }
+              return line
+            }).join('\n')
+            row.push(cellText)
+          }
+        }
+        return row
+      })
+    } else {
+      head = [['Day / Period', ...teachingPeriods.map(p => p.name)]]
+      body = itemDays.map(day => {
+        const row = [day]
+        for (const p of teachingPeriods) {
+          const cell = item.rows[day]?.[p.id]
+          row.push(cell || '—')
+        }
+        return row
+      })
+    }
 
     const bulkScale = pageW / 210
     const bulkMargin = 5 * bulkScale
@@ -455,7 +482,8 @@ export function exportBulkPDF({ items, days, periods, school, paperSize, orienta
       bodyStyles: {
         fontSize: (isLandscape ? 7 : 6) * bulkScale,
         halign: 'center',
-        valign: 'middle',
+        valign: bulkType === 'departments' ? 'top' : 'middle',
+        cellPadding: bulkType === 'departments' ? 1 * bulkScale : undefined,
         minCellHeight: bulkRowHeight,
       },
       alternateRowStyles: { fillColor: [239, 246, 255] },
@@ -475,7 +503,7 @@ export function exportBulkPDF({ items, days, periods, school, paperSize, orienta
 
 export async function exportBulkCSV({ items, days, periods, bulkType, periodLabel, getScheduleForClassFn }) {
   const wb = new ExcelJS.Workbook()
-  const typeLabel = bulkType === 'classes' ? 'Class' : 'Teacher'
+  const typeLabel = bulkType === 'classes' ? 'Class' : bulkType === 'teachers' ? 'Teacher' : 'Department'
 
   for (const item of items) {
     const itemDays = item.schedule?.days || days
@@ -484,40 +512,86 @@ export async function exportBulkCSV({ items, days, periods, bulkType, periodLabe
     const sheetName = item.name.substring(0, 31).replace(/[\\/\?\*\[\]:]/g, '_')
     const ws = wb.addWorksheet(sheetName)
 
-    const headers = ['Day / Period', ...teachingPeriods.map(p => `${p.name}\n(${p.start}-${p.end})`)]
-    const headerRow = ws.addRow(headers)
-    headerRow.height = 30
-    headerRow.eachCell((cell) => {
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
-      cell.fill = headerFill
-      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
-      cell.border = thinBorder
-    })
-
-    itemDays.forEach((day, dayIdx) => {
-      const rowData = [day]
-      for (const p of teachingPeriods) {
-        const cell = item.rows[day]?.[p.id]
-        rowData.push(cell || '—')
-      }
-      const row = ws.addRow(rowData)
-      row.height = 45
-      row.eachCell((cell, colNumber) => {
+    if (bulkType === 'departments') {
+      const headers = ['Day', 'Period', 'Time', 'Teacher', 'Class', 'Subject', 'Room', 'Secondary Teacher', 'Secondary Class', 'Secondary Subject']
+      const headerRow = ws.addRow(headers)
+      headerRow.height = 25
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
+        cell.fill = headerFill
+        cell.alignment = { horizontal: 'center', vertical: 'middle' }
         cell.border = thinBorder
-        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
-        if (colNumber === 1) {
-          cell.font = { bold: true, color: { argb: 'FF1E40AF' } }
-          cell.fill = dayFill
-        } else {
-          cell.font = { size: 10 }
-          if (dayIdx % 2 === 1) cell.fill = altFill
-        }
       })
-    })
 
-    ws.columns.forEach((col, i) => {
-      col.width = i === 0 ? 18 : 28
-    })
+      let rowIdx = 0
+      for (const day of itemDays) {
+        for (const p of teachingPeriods) {
+          const entries = item.deptMasterData.filter(e => e.day === day && e.periodId === p.id)
+          if (entries.length === 0) {
+            const row = ws.addRow([day, p.name, `${p.start}-${p.end}`, '', '', '', '', '', '', ''])
+            row.eachCell((cell, colNumber) => {
+              cell.border = thinBorder
+              cell.alignment = { horizontal: 'center', vertical: 'middle' }
+              if (colNumber === 1) { cell.font = { bold: true } }
+              if (rowIdx % 2 === 1) cell.fill = altFill
+            })
+            rowIdx++
+          } else {
+            for (const e of entries) {
+              const row = ws.addRow([day, p.name, `${p.start}-${p.end}`, e.teacherName, e.className, e.subjectName, e.roomName, e.secondaryTeacherName || '', e.secondaryClassName || '', e.secondarySubjectName || ''])
+              row.eachCell((cell, colNumber) => {
+                cell.border = thinBorder
+                cell.alignment = { horizontal: 'center', vertical: 'middle' }
+                if (colNumber === 1) { cell.font = { bold: true } }
+                if (colNumber === 4) { cell.font = { color: { argb: 'FF059669' } } }
+                if (colNumber === 5) { cell.font = { bold: true, color: { argb: 'FF1E40AF' } } }
+                if (rowIdx % 2 === 1) cell.fill = altFill
+              })
+              rowIdx++
+            }
+          }
+        }
+      }
+
+      ws.columns.forEach((col, i) => {
+        col.width = [10, 10, 12, 18, 18, 18, 12, 18, 18, 18][i] || 15
+      })
+    } else {
+      const headers = ['Day / Period', ...teachingPeriods.map(p => `${p.name}\n(${p.start}-${p.end})`)]
+      const headerRow = ws.addRow(headers)
+      headerRow.height = 30
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
+        cell.fill = headerFill
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+        cell.border = thinBorder
+      })
+
+      itemDays.forEach((day, dayIdx) => {
+        const rowData = [day]
+        for (const p of teachingPeriods) {
+          const cell = item.rows[day]?.[p.id]
+          rowData.push(cell || '—')
+        }
+        const row = ws.addRow(rowData)
+        row.height = 45
+        row.eachCell((cell, colNumber) => {
+          cell.border = thinBorder
+          cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+          if (colNumber === 1) {
+            cell.font = { bold: true, color: { argb: 'FF1E40AF' } }
+            cell.fill = dayFill
+          } else {
+            cell.font = { size: 10 }
+            if (dayIdx % 2 === 1) cell.fill = altFill
+          }
+        })
+      })
+
+      ws.columns.forEach((col, i) => {
+        col.width = i === 0 ? 18 : 28
+      })
+    }
   }
 
   const suffix = periodLabel ? `_${periodLabel.replace(/[^a-zA-Z0-9]/g, '_')}` : ''
