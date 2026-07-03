@@ -1,9 +1,15 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useEffect, useState } from 'react'
 import { useApp, getScheduleForClass } from '../store/AppContext.jsx'
-import { Card, PageHeader, Badge, ProgressBar, Button } from '../components/UI.jsx'
+import { Card, PageHeader, Badge, ProgressBar, Button, SkeletonCard } from '../components/UI.jsx'
 
 export default function Statistics({ embedded, onBack, navigate }) {
   const { state } = useApp()
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 2000)
+    return () => clearTimeout(timer)
+  }, [])
 
   const stats = useMemo(() => {
     const teachingPeriods = state.settings.periods.filter(p => !p.isBreak)
@@ -166,6 +172,17 @@ export default function Statistics({ embedded, onBack, navigate }) {
       overtime,
     }
   }, [state.timetable, state.teachers, state.classes, state.settings, state.subjects, state.teacherConstraints])
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-8">
+        {!embedded && <PageHeader title="Statistics" subtitle="Loading..." />}
+        <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      </div>
+    )
+  }
 
   if (state.timetable.length === 0) {
     return (

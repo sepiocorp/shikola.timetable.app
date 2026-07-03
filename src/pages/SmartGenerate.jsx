@@ -1,11 +1,18 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useApp, getScheduleForClass } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
-import { Button, Card, PageHeader, Modal, EmptyState, ProgressBar, Badge, Toggle, Checkbox, Tabs } from '../components/UI.jsx'
+import { Button, Card, PageHeader, Modal, EmptyState, ProgressBar, Badge, Toggle, Checkbox, Tabs, SkeletonCard } from '../components/UI.jsx'
 import { generateTimetable, canGenerate } from '../utils/generate.js'
 
 export default function SmartGenerate({ navigate, searchQuery }) {
   const { state, dispatch } = useApp()
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 2000)
+    return () => clearTimeout(timer)
+  }, [])
+
   const genCheck = canGenerate(state)
 
   const teachingPeriods = state.settings.periods.filter(p => !p.isBreak)
@@ -149,6 +156,17 @@ export default function SmartGenerate({ navigate, searchQuery }) {
             }
           />
         </Card>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-8">
+        <PageHeader title="Smart Generate" subtitle="Loading..." />
+        <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
       </div>
     )
   }

@@ -1,10 +1,16 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
-import { Button, Input, Card, PageHeader, Modal, EmptyState, Badge, Tabs } from '../components/UI.jsx'
+import { Button, Input, Card, PageHeader, Modal, EmptyState, Badge, Tabs, SkeletonCard } from '../components/UI.jsx'
 
 export default function Departments({ searchQuery }) {
   const { state, dispatch } = useApp()
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 2000)
+    return () => clearTimeout(timer)
+  }, [])
 
   const filteredDepartments = state.departments.filter(dept =>
     dept.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -69,6 +75,20 @@ export default function Departments({ searchQuery }) {
       dispatch({ type: 'UPDATE_SUBJECT', payload: { ...subject, departmentId: deptId } })
       sounds.click()
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-8">
+        <PageHeader
+          title={tab === 'assignments' ? 'Teacher & Subject Assignments' : 'Departments'}
+          subtitle="Loading..."
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      </div>
+    )
   }
 
   return (

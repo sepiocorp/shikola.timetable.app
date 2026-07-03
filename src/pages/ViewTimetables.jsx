@@ -3,7 +3,6 @@ import { useApp, getScheduleForClass } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
 import { Button, Select, Card, PageHeader, EmptyState, Spinner, SkeletonCard, Tabs, Checkbox } from '../components/UI.jsx'
 import { exportTimetablePDF, exportMasterPDF, exportCSV, exportMasterCSV, exportBulkPDF, exportBulkCSV } from '../utils/export.js'
-import { exportTimetableHTML, exportMasterHTML } from '../utils/htmlExport.js'
 import Statistics from './Statistics.jsx'
 import TimetableVerification from './TimetableVerification.jsx'
 import PrintPreview from './PrintPreview.jsx'
@@ -247,35 +246,6 @@ export default function ViewTimetables({ navigate, searchQuery }) {
         : state.timetable.filter(e => e.teacherId === item.id || e.secondaryTeacherId === item.id)
       return { ...item, rows: buildRows(entries, bulkType === 'teachers' ? item.id : null, itemSchedule), schedule: itemSchedule }
     })
-  }
-
-  const handleExportHTML = () => {
-    setExporting(true)
-    setTimeout(() => {
-      if (viewType === 'master' || viewType === 'department') {
-        exportMasterHTML({
-          days: state.settings.days,
-          periods: state.settings.periods,
-          timetables: viewType === 'department' ? deptMasterData : masterData,
-          school: state.school,
-          periodLabel,
-        })
-      } else {
-        const subtitle = viewType === 'class'
-          ? state.classes.find(c => c.id === selectedId)?.name
-          : state.teachers.find(t => t.id === selectedId)?.name
-        exportTimetableHTML({
-          title: getExportTitle(),
-          subtitle,
-          days: activeSchedule.days,
-          periods: activeSchedule.periods,
-          rows: currentRows,
-          school: state.school,
-          periodLabel,
-        })
-      }
-      setExporting(false)
-    }, 100)
   }
 
   const handleBulkExportPDF = () => {
@@ -683,9 +653,6 @@ export default function ViewTimetables({ navigate, searchQuery }) {
                     ))}
                   </select>
                 </div>
-                <Button variant="secondary" onClick={handleExportHTML} disabled={viewType === 'department' ? !selectedDeptId : viewType !== 'master' && !selectedId}>
-                  Export HTML
-                </Button>
                 <Button variant="secondary" onClick={handleExportCSV} disabled={viewType === 'department' ? !selectedDeptId : viewType !== 'master' && !selectedId}>
                   Export Spreadsheet
                 </Button>

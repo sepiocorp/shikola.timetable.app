@@ -71,6 +71,22 @@ const ManageRooms = forwardRef(function ManageRooms({ embedded, onBack, searchQu
   const getTeacherName = (id) => state.teachers.find(t => t.id === id)?.name || 'Unknown'
   const getPeriodName = (id) => state.settings.periods.find(p => String(p.id) === String(id))?.name || id
 
+  if (loading) {
+    return (
+      <div className="p-4 md:p-8">
+        {!embedded ? (
+          <PageHeader
+            title="Rooms"
+            subtitle="Loading..."
+          />
+        ) : null}
+        <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-4 md:p-8">
       {!embedded ? (

@@ -1,10 +1,17 @@
-import React, { useState, useMemo, forwardRef, useImperativeHandle } from 'react'
+import React, { useState, useMemo, forwardRef, useImperativeHandle, useEffect } from 'react'
 import { useApp, getScheduleForClass } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
-import { Button, Card, PageHeader, Badge, ProgressBar } from '../components/UI.jsx'
+import { Button, Card, PageHeader, Badge, ProgressBar, SkeletonCard } from '../components/UI.jsx'
 
 const TimetableVerification = forwardRef(function TimetableVerification({ embedded, onBack }, ref) {
   const { state } = useApp()
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 2000)
+    return () => clearTimeout(timer)
+  }, [])
+
   const [results, setResults] = useState(null)
 
   useImperativeHandle(ref, () => ({ runVerification }))
@@ -182,6 +189,17 @@ const TimetableVerification = forwardRef(function TimetableVerification({ embedd
   }
 
   const hasTimetable = state.timetable.length > 0
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-8">
+        {!embedded ? <PageHeader title="Timetable Verification" subtitle="Loading..." /> : null}
+        <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-4 md:p-8">

@@ -128,6 +128,20 @@ export default function ManageTeachers({ navigate, searchQuery }) {
     return ids.map(id => state.classes.find(c => c.id === id)?.name).filter(Boolean)
   }
 
+  if (loading) {
+    return (
+      <div className="p-4 md:p-8">
+        <PageHeader
+          title={activeTab === 'constraints' ? 'Constraints & Time Off' : activeTab === 'substitutions' ? 'Substitutions' : 'Teachers'}
+          subtitle="Loading..."
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-4 md:p-8">
       <PageHeader

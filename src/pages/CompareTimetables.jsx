@@ -1,10 +1,17 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
-import { Button, Card, PageHeader, Badge, EmptyState } from '../components/UI.jsx'
+import { Button, Card, PageHeader, Badge, EmptyState, SkeletonCard } from '../components/UI.jsx'
 
 export default function CompareTimetables({ embedded, onBack }) {
   const { state } = useApp()
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 2000)
+    return () => clearTimeout(timer)
+  }, [])
+
   const [savedSnapshot, setSavedSnapshot] = useState(null)
   const [compareResult, setCompareResult] = useState(null)
 
@@ -46,6 +53,17 @@ export default function CompareTimetables({ embedded, onBack }) {
   const getRoomName = (id) => state.rooms.find(r => r.id === id)?.name || '—'
 
   const entryLabel = (e) => `${getClassName(e.classId)} · ${e.day} · ${getSubjectName(e.subjectId)} · ${getTeacherName(e.teacherId)} · ${getRoomName(e.roomId)}`
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-8">
+        {!embedded && <PageHeader title="Compare Timetables" subtitle="Loading..." />}
+        <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-4 md:p-8">

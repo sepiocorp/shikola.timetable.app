@@ -1,7 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useApp, PERIOD_TYPES } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
-import { Button, Input, Select, Card, PageHeader, Modal, Toggle, Badge, Tabs } from '../components/UI.jsx'
+import { Button, Input, Select, Card, PageHeader, Modal, Toggle, Badge, Tabs, SkeletonCard } from '../components/UI.jsx'
 import { sendRegistration, trackEvent } from '../utils/telemetry.js'
 import BackupRestore from './BackupRestore.jsx'
 
@@ -163,6 +163,13 @@ function CustomFieldForm({ onAdd, state }) {
 
 export default function Settings({ searchQuery }) {
   const { state, dispatch } = useApp()
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 2000)
+    return () => clearTimeout(timer)
+  }, [])
+
   const [schoolForm, setSchoolForm] = useState(state.school || {})
   const [periods, setPeriods] = useState(state.settings.periods)
   const [selectedDays, setSelectedDays] = useState(state.settings.days)
@@ -180,6 +187,7 @@ export default function Settings({ searchQuery }) {
   const handleSchoolSave = () => {
     dispatch({ type: 'SET_SCHOOL', payload: schoolForm })
     sounds.save()
+    dispatch({ type: 'SET_SUCCESS_MESSAGE', payload: 'School info saved successfully' })
   }
 
   const handleLogoUpload = (e) => {
@@ -202,9 +210,52 @@ export default function Settings({ searchQuery }) {
     sounds.click()
   }
 
+  const handleAddPeriod = () => {
+    const teachingCount = periods.filter(p => !p.isBreak).length
+    const lastPeriod = periods[periods.length - 1]
+    let start = '08:00'
+    if (lastPeriod?.end) {
+      const [h, m] = lastPeriod.end.split(':').map(Number)
+      const newM = m + 40
+      const newH = h + Math.floor(newM / 60)
+      start = `${String(newH).padStart(2, '0')}:${String(newM % 60).padStart(2, '0')}`
+    }
+    const [sh, sm] = start.split(':').map(Number)
+    const endM = sm + 40
+    const endH = sh + Math.floor(endM / 60)
+    const end = `${String(endH).padStart(2, '0')}:${String(endM % 60).padStart(2, '0')}`
+    const newId = Date.now()
+    setPeriods([...periods, { id: newId, name: `Period ${teachingCount + 1}`, start, end }])
+    sounds.add()
+  }
+
+  const handleAddBreak = () => {
+    const lastPeriod = periods[periods.length - 1]
+    let start = '10:00'
+    if (lastPeriod?.end) {
+      const [h, m] = lastPeriod.end.split(':').map(Number)
+      const newM = m + 15
+      const newH = h + Math.floor(newM / 60)
+      start = `${String(newH).padStart(2, '0')}:${String(newM % 60).padStart(2, '0')}`
+    }
+    const [sh, sm] = start.split(':').map(Number)
+    const endM = sm + 15
+    const endH = sh + Math.floor(endM / 60)
+    const end = `${String(endH).padStart(2, '0')}:${String(endM % 60).padStart(2, '0')}`
+    const newId = Date.now() + 100
+    setPeriods([...periods, { id: newId, name: 'Break', start, end, isBreak: true }])
+    sounds.add()
+  }
+
+  const handleRemovePeriod = (id) => {
+    setPeriods(periods.filter(p => p.id !== id))
+    sounds.delete()
+  }
+
   const handlePeriodsSave = () => {
     dispatch({ type: 'UPDATE_SETTINGS', payload: { periods } })
     sounds.save()
+    dispatch({ type: 'SET_SUCCESS_MESSAGE', payload: 'Period times saved successfully' })
   }
 
   const handleDayToggle = (day) => {
@@ -220,6 +271,7 @@ export default function Settings({ searchQuery }) {
     const ordered = ALL_DAYS.filter(d => selectedDays.includes(d))
     dispatch({ type: 'UPDATE_SETTINGS', payload: { days: ordered } })
     sounds.save()
+    dispatch({ type: 'SET_SUCCESS_MESSAGE', payload: 'School days saved successfully' })
   }
 
   const handleReset = () => {
@@ -231,6 +283,7 @@ export default function Settings({ searchQuery }) {
   const handleAppearanceSave = () => {
     dispatch({ type: 'SET_APPEARANCE', payload: appearance })
     sounds.save()
+    dispatch({ type: 'SET_SUCCESS_MESSAGE', payload: 'Appearance saved successfully' })
   }
 
   const openAddPeriod = () => {
@@ -425,6 +478,17 @@ export default function Settings({ searchQuery }) {
     reader.readAsText(file)
   }
 
+  if (loading) {
+    return (
+      <div className="p-4 md:p-8">
+        <PageHeader title="Settings" subtitle="Loading..." />
+        <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-4 md:p-8">
       <PageHeader title="Settings" subtitle="Configure school information, appearance, and timetable settings" />
@@ -529,11 +593,21 @@ export default function Settings({ searchQuery }) {
           </Card>
 
           <Card className="p-6 mb-6">
-            <h3 className="text-sm font-bold text-slate-700 mb-4">Period Times</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-slate-700">Period Times</h3>
+              <div className="flex gap-2">
+                <Button size="sm" variant="secondary" onClick={handleAddBreak}>+ Break</Button>
+                <Button size="sm" onClick={handleAddPeriod}>+ Period</Button>
+              </div>
+            </div>
             <div className="space-y-2">
               {periods.map(period => (
                 <div key={period.id} className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-slate-700 w-24">{period.name}</span>
+                  <Input
+                    value={period.name}
+                    onChange={e => handlePeriodUpdate(period.id, 'name', e.target.value)}
+                    className="w-28"
+                  />
                   {period.isBreak ? (
                     <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded">Break</span>
                   ) : (
@@ -542,8 +616,20 @@ export default function Settings({ searchQuery }) {
                   <Input type="time" value={period.start} onChange={e => handlePeriodUpdate(period.id, 'start', e.target.value)} className="w-32" />
                   <span className="text-slate-400">to</span>
                   <Input type="time" value={period.end} onChange={e => handlePeriodUpdate(period.id, 'end', e.target.value)} className="w-32" />
+                  <button
+                    onClick={() => handleRemovePeriod(period.id)}
+                    className="text-slate-400 hover:text-red-500 transition-colors"
+                    title="Remove period"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
                 </div>
               ))}
+              {periods.length === 0 && (
+                <p className="text-sm text-slate-400 text-center py-4">No periods configured. Add one to get started.</p>
+              )}
             </div>
             <div className="mt-4">
               <Button onClick={handlePeriodsSave}>Save Period Times</Button>

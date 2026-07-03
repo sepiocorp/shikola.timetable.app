@@ -76,6 +76,41 @@ function UndoToast() {
   )
 }
 
+function SuccessToast() {
+  const { state, dispatch } = useApp()
+  const timerRef = useRef(null)
+
+  useEffect(() => {
+    if (state.successMessage) {
+      timerRef.current = setTimeout(() => {
+        dispatch({ type: 'CLEAR_SUCCESS_MESSAGE' })
+      }, 3000)
+      return () => clearTimeout(timerRef.current)
+    }
+  }, [state.successMessage, dispatch])
+
+  if (!state.successMessage) return null
+
+  return (
+    <div className="fixed bottom-4 right-4 z-[200] animate-fade-in">
+      <div className="bg-green-600 text-white rounded-lg shadow-xl px-4 py-3 flex items-center gap-3">
+        <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+        <span className="text-sm font-medium">{state.successMessage}</span>
+        <button
+          onClick={() => dispatch({ type: 'CLEAR_SUCCESS_MESSAGE' })}
+          className="text-green-200 hover:text-white"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function StorageWarningBanner() {
   const { state, dispatch } = useApp()
   if (!state.storageWarning) return null
@@ -334,6 +369,7 @@ export default function App() {
         </div>
       </div>
       <UndoToast />
+      <SuccessToast />
 
       <Modal open={showDocs} onClose={() => setShowDocs(false)} title="Documentation" maxWidth="max-w-4xl">
         <Documentation />

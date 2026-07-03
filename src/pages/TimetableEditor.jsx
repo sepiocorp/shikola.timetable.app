@@ -1,11 +1,17 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useApp, getScheduleForClass } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
-import { Button, Select, Card, PageHeader, Modal, EmptyState, ProgressBar, Badge, Tabs } from '../components/UI.jsx'
+import { Button, Select, Card, PageHeader, Modal, EmptyState, ProgressBar, Badge, Tabs, SkeletonCard } from '../components/UI.jsx'
 import { generateTimetable, canGenerate } from '../utils/generate.js'
 
 export default function TimetableEditor({ navigate, searchQuery }) {
   const { state, dispatch, checkConflicts } = useApp()
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 2000)
+    return () => clearTimeout(timer)
+  }, [])
   const [selectedClass, setSelectedClass] = useState('')
   const [cellModal, setCellModal] = useState(null)
   const [form, setForm] = useState({ teacherId: '', subjectId: '', roomId: '', secondaryClassId: '', secondarySubjectId: '', secondaryTeacherId: '', lessonLength: 1, lessonGroupId: '' })
@@ -207,6 +213,17 @@ export default function TimetableEditor({ navigate, searchQuery }) {
     const teacher = state.teachers.find(t => t.id === teacherId)
     if (!teacher?.subjects?.length) return state.subjects
     return state.subjects.filter(s => teacher.subjects.includes(s.id))
+  }
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-8">
+        <PageHeader title="Timetable Editor" subtitle="Loading..." />
+        <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      </div>
+    )
   }
 
   if (state.classes.length === 0) {

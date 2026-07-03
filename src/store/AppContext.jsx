@@ -71,6 +71,7 @@ const defaultData = {
   language: 'en',
   backupHistory: [],
   lastDeleted: null,
+  successMessage: null,
   storageWarning: null,
   telemetry: {
     registered: true,
@@ -138,8 +139,18 @@ function reducer(state, action) {
     case 'SET_SCHOOL':
       return { ...state, school: action.payload }
 
-    case 'UPDATE_SETTINGS':
-      return { ...state, settings: { ...state.settings, ...action.payload } }
+    case 'UPDATE_SETTINGS': {
+      const newSettings = { ...state.settings, ...action.payload }
+      if (action.payload.periods) {
+        const validPeriodIds = new Set(action.payload.periods.map(p => p.id))
+        return {
+          ...state,
+          settings: newSettings,
+          timetable: state.timetable.filter(e => validPeriodIds.has(e.periodId)),
+        }
+      }
+      return { ...state, settings: newSettings }
+    }
 
     case 'ADD_TEACHER':
       return { ...state, teachers: [...state.teachers, { ...action.payload, id: genId() }] }
@@ -298,11 +309,23 @@ function reducer(state, action) {
     case 'ADD_SECTION':
       return { ...state, sections: [...state.sections, { ...action.payload, id: genId() }] }
 
-    case 'UPDATE_SECTION':
-      return {
-        ...state,
-        sections: state.sections.map(s => s.id === action.payload.id ? { ...s, ...action.payload } : s),
+    case 'UPDATE_SECTION': {
+      const updatedSections = state.sections.map(s => s.id === action.payload.id ? { ...s, ...action.payload } : s)
+      if (action.payload.periods) {
+        const validPeriodIds = new Set(action.payload.periods.map(p => p.id))
+        const sectionClassIds = new Set(
+          state.classes.filter(c => c.sectionId === action.payload.id).map(c => c.id)
+        )
+        return {
+          ...state,
+          sections: updatedSections,
+          timetable: state.timetable.filter(e =>
+            !sectionClassIds.has(e.classId) || validPeriodIds.has(e.periodId)
+          ),
+        }
       }
+      return { ...state, sections: updatedSections }
+    }
 
     case 'DELETE_SECTION':
       return {
@@ -369,6 +392,12 @@ function reducer(state, action) {
 
     case 'CLEAR_UNDO':
       return { ...state, lastDeleted: null }
+
+    case 'SET_SUCCESS_MESSAGE':
+      return { ...state, successMessage: action.payload }
+
+    case 'CLEAR_SUCCESS_MESSAGE':
+      return { ...state, successMessage: null }
 
     case 'SET_STORAGE_WARNING':
       return { ...state, storageWarning: action.payload }

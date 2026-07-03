@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
-import { Button, Card, PageHeader, EmptyState, Badge } from '../components/UI.jsx'
+import { Button, Card, PageHeader, EmptyState, Badge, SkeletonCard } from '../components/UI.jsx'
 import { createBackup, getBackups, restoreBackup, deleteBackup, exportBackup, importBackup } from '../utils/backup.js'
 
 export default function BackupRestore({ embedded }) {
   const { state, dispatch } = useApp()
+  const [loading, setLoading] = useState(true)
   const [backups, setBackups] = useState([])
   const [importStatus, setImportStatus] = useState(null)
 
   useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 2000)
     setBackups(getBackups())
+    return () => clearTimeout(timer)
   }, [])
 
   const refreshBackups = () => setBackups(getBackups())
@@ -62,6 +65,17 @@ export default function BackupRestore({ embedded }) {
       setTimeout(() => setImportStatus(null), 3000)
     }
     e.target.value = ''
+  }
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-8">
+        <PageHeader title="Backup & Restore" subtitle="Loading..." />
+        <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      </div>
+    )
   }
 
   return (
