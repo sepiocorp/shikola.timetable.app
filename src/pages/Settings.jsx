@@ -183,6 +183,7 @@ export default function Settings({ searchQuery }) {
   const [editingSection, setEditingSection] = useState(null)
   const [sectionForm, setSectionForm] = useState({ name: '', session: 'full', days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], periods: [] })
   const [sectionNumPeriods, setSectionNumPeriods] = useState(8)
+  const [storageLimitModal, setStorageLimitModal] = useState(false)
 
   const handleSchoolSave = () => {
     dispatch({ type: 'SET_SCHOOL', payload: schoolForm })
@@ -1263,6 +1264,62 @@ export default function Settings({ searchQuery }) {
           </div>
 
           <Card className="p-6 mb-6">
+            <h3 className="text-sm font-bold text-slate-700 mb-3">Storage Usage</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">Storage Used:</span>
+                <span className="font-medium text-slate-800">
+                  {(() => {
+                    try {
+                      const data = JSON.stringify(state)
+                      const used = new Blob([data]).size
+                      const usedMB = (used / (1024 * 1024)).toFixed(2)
+                      return `${usedMB} MB`
+                    } catch (e) {
+                      return 'Unknown'
+                    }
+                  })()}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">Storage Type:</span>
+                <span className="font-medium text-slate-800">IndexedDB</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">Estimated Limit:</span>
+                <span className="font-medium text-slate-800">100 MB</span>
+              </div>
+              {(() => {
+                try {
+                  const data = JSON.stringify(state)
+                  const used = new Blob([data]).size
+                  const usedMB = used / (1024 * 1024)
+                  if (usedMB > 100) {
+                    return (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <p className="text-xs text-red-700 font-semibold mb-1">Storage Limit Exceeded</p>
+                        <p className="text-xs text-red-600 mb-2">You have exceeded the 100 MB storage limit.</p>
+                        <Button size="sm" onClick={() => setStorageLimitModal(true)}>View Options</Button>
+                      </div>
+                    )
+                  }
+                  return null
+                } catch (e) {
+                  return null
+                }
+              })()}
+              {state.storageWarning && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs text-amber-700">{state.storageWarning}</p>
+                </div>
+              )}
+              <p className="text-xs text-slate-500">
+                Your data is stored in IndexedDB with a 100 MB limit. If you need more storage, please contact us for assistance.
+              </p>
+            </div>
+          </Card>
+
+          <Card className="p-6 mb-6">
             <h3 className="text-sm font-bold text-slate-700 mb-3">Data Privacy</h3>
             <div className="flex items-start gap-3">
               <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -1280,17 +1337,10 @@ export default function Settings({ searchQuery }) {
             </div>
           </Card>
 
-          <Card className="p-6 mb-6">
-            <h3 className="text-sm font-bold text-slate-700 mb-3">Built With</h3>
-            <div className="flex flex-wrap gap-2">
-              {['React 18', 'Electron', 'Vite', 'Tailwind CSS', 'jsPDF', 'PapaParse'].map(tech => (
-                <Badge key={tech} color="slate">{tech}</Badge>
-              ))}
-            </div>
-          </Card>
+         
 
           <div className="text-center py-6">
-            <p className="text-xs text-slate-400">&copy; {new Date().getFullYear()} Sepio Corp. All rights reserved.</p>
+            <p className="text-xs text-slate-400">&copy; {new Date().getFullYear()} Shikola Timetable Creator powered by Sepio Corp. All rights reserved.</p>
             <p className="text-xs text-slate-300 mt-1">Made with care for educators worldwide.</p>
           </div>
         </>
@@ -1425,6 +1475,35 @@ export default function Settings({ searchQuery }) {
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" onClick={() => setSectionModal(false)}>Cancel</Button>
             <Button onClick={handleSectionSave}>{editingSection ? 'Update' : 'Add'}</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Storage Limit Modal */}
+      <Modal isOpen={storageLimitModal} onClose={() => setStorageLimitModal(false)}>
+        <div className="p-6">
+          <h3 className="text-lg font-bold text-slate-800 mb-2">Storage Limit Exceeded</h3>
+          <p className="text-sm text-slate-600 mb-4">
+            You have exceeded the 100 MB storage limit. To continue using Shikola Timetable, please choose one of the following options:
+          </p>
+          <div className="space-y-3">
+            <a
+              href="https://shikola.org"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full text-center px-4 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium"
+            >
+              Download Shikola Management System
+            </a>
+            <button
+              onClick={() => window.location.href = 'mailto:support@shikola.org?subject=Storage Limit Exceeded - Shikola Timetable'}
+              className="block w-full px-4 py-3 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium"
+            >
+              Contact Us via Email
+            </button>
+          </div>
+          <div className="mt-4 pt-4 border-t border-slate-200">
+            <Button variant="secondary" className="w-full" onClick={() => setStorageLimitModal(false)}>Close</Button>
           </div>
         </div>
       </Modal>

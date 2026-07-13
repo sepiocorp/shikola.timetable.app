@@ -1,86 +1,7 @@
-import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react'
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useState, useRef } from 'react'
+import { openDB, getData, setData, migrateFromLocalStorage, getStorageUsage, defaultData } from '../utils/indexedDB.js'
 
 const STORAGE_KEY = 'shikola-timetable-data'
-
-const defaultData = {
-  school: null,
-  settings: {
-    days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-    periods: [
-      { id: 1, name: 'Period 1', start: '08:00', end: '08:40' },
-      { id: 2, name: 'Period 2', start: '08:40', end: '09:20' },
-      { id: 3, name: 'Period 3', start: '09:20', end: '10:00' },
-      { id: 4, name: 'Break', start: '10:00', end: '10:20', isBreak: true },
-      { id: 5, name: 'Period 4', start: '10:20', end: '11:00' },
-      { id: 6, name: 'Period 5', start: '11:00', end: '11:40' },
-      { id: 7, name: 'Lunch', start: '11:40', end: '12:20', isBreak: true },
-      { id: 8, name: 'Period 6', start: '12:20', end: '13:00' },
-      { id: 9, name: 'Period 7', start: '13:00', end: '13:40' },
-      { id: 10, name: 'Period 8', start: '13:40', end: '14:20' },
-    ],
-  },
-  appearance: {
-    primaryColor: '#2563eb',
-    accentColor: '#3b82f6',
-    showSchoolHeader: true,
-    showTeacherInCell: true,
-    showRoomInCell: true,
-    cellFontSize: 'auto',
-    tableTheme: 'striped',
-    soundEnabled: true,
-  },
-  academicPeriods: [],
-  activePeriodId: null,
-  sections: [],
-  teachers: [],
-  classes: [],
-  subjects: [],
-  rooms: [],
-  timetable: [],
-  // Phase 1: Core scheduling
-  teacherTimeOff: {},
-  teacherConstraints: {},
-  cardRelationships: [],
-  lessonTypes: [
-    { id: 'single', name: 'Single', length: 1 },
-    { id: 'double', name: 'Double', length: 2 },
-    { id: 'triple', name: 'Triple', length: 3 },
-  ],
-  // Phase 2: Class & lesson management
-  lessonDivisions: [],
-  lessonGroups: [],
-  jointClasses: [],
-  multiWeekCycle: 1,
-  lockedEntries: [],
-  // Phase 4: Substitutions & supervision
-  substitutions: [],
-  supervision: [],
-  // Phase 5: Export & print
-  customFields: [],
-  // Departments, subject assignments, shared resources
-  departments: [],
-  subjectAssignments: [],
-  sharedRooms: [],
-  sharedClasses: [],
-  // Phase 6: Advanced
-  lunchConstraint: { enabled: false, afterPeriodId: null, beforePeriodId: null },
-  educationBlocks: [],
-  buildings: [],
-  pupils: [],
-  autoRelax: false,
-  language: 'en',
-  backupHistory: [],
-  lastDeleted: null,
-  successMessage: null,
-  storageWarning: null,
-  telemetry: {
-    registered: true,
-    analyticsEnabled: true,
-    crashReportingEnabled: true,
-    registrationConsent: true,
-    consentTimestamp: null,
-  },
-}
 
 export function getScheduleForClass(state, classId) {
   const cls = state.classes.find(c => c.id === classId)
@@ -117,17 +38,35 @@ function deepMergeDefaults(defaults, saved) {
   return result
 }
 
-function loadData() {
+async function loadData() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      return deepMergeDefaults(defaultData, parsed)
+    // Try IndexedDB first
+    await openDB()
+    const data = await getData()
+    
+    // If IndexedDB is empty, try migrating from localStorage
+    if (data.teachers.length === 0 && data.classes.length === 0) {
+      const migrated = await migrateFromLocalStorage()
+      if (migrated) {
+        return await getData()
+      }
     }
+    
+    return data
   } catch (e) {
-    console.error('Failed to load data:', e)
+    console.error('Failed to load data from IndexedDB:', e)
+    // Fallback to localStorage
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        return deepMergeDefaults(defaultData, parsed)
+      }
+    } catch (fallbackError) {
+      console.error('Failed to load from localStorage fallback:', fallbackError)
+    }
+    return defaultData
   }
-  return defaultData
 }
 
 function genId() {
@@ -604,22 +543,89 @@ function reducer(state, action) {
 const AppContext = createContext(null)
 
 export function AppProvider({ children }) {
-  const [state, dispatch] = useReducer(reducer, undefined, loadData)
+  const [state, setState] = useState(defaultData)
+  const [loading, setLoading] = useState(true)
+  const dispatchRef = useRef(null)
 
+  // Initialize dispatch ref
+  dispatchRef.current = useCallback((action) => {
+    setState(prevState => reducer(prevState, action))
+  }, [])
+
+  // Load data on mount
   useEffect(() => {
-    try {
-      const serialized = JSON.stringify(state)
-      localStorage.setItem(STORAGE_KEY, serialized)
-      if (state.storageWarning) {
-        dispatch({ type: 'SET_STORAGE_WARNING', payload: null })
-      }
-    } catch (e) {
-      console.error('Failed to save data:', e)
-      if (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014) {
-        dispatch({ type: 'SET_STORAGE_WARNING', payload: 'Storage limit reached! The school logo or data may be too large. Consider removing the logo or exporting a backup.' })
+    async function initialize() {
+      try {
+        const data = await loadData()
+        setState(data)
+        setLoading(false)
+        
+        // Send storage usage analytics on load
+        if (window.electronAPI?.telemetry?.trackEvent) {
+          const dataSize = new Blob([JSON.stringify(data)]).size
+          const sizeMB = dataSize / (1024 * 1024)
+          window.electronAPI.telemetry.trackEvent('storage_usage_report', {
+            storageSizeMB: sizeMB.toFixed(2),
+            schoolName: data.school?.name || 'Unknown',
+            schoolEmail: data.school?.email || 'Unknown',
+            teacherCount: data.teachers.length,
+            classCount: data.classes.length,
+            subjectCount: data.subjects.length,
+            roomCount: data.rooms.length,
+            timetableEntries: data.timetable.length,
+            pupilCount: data.pupils.length,
+          }).catch(() => {})
+        }
+      } catch (e) {
+        console.error('Failed to initialize data:', e)
+        setState(defaultData)
+        setLoading(false)
       }
     }
-  }, [state])
+    initialize()
+  }, [])
+
+  // Save data to IndexedDB on state changes
+  useEffect(() => {
+    if (loading) return
+    
+    async function saveData() {
+      try {
+        // Check storage limit before saving
+        const dataSize = new Blob([JSON.stringify(state)]).size
+        const sizeMB = dataSize / (1024 * 1024)
+        if (sizeMB > 100) {
+          dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: 'Storage limit exceeded (100 MB). Please download the Shikola Management System or contact us for assistance.' })
+          
+          // Send notification to Sepio Corp about storage limit exceeded
+          if (window.electronAPI?.telemetry?.trackEvent) {
+            window.electronAPI.telemetry.trackEvent('storage_limit_exceeded', {
+              storageSizeMB: sizeMB.toFixed(2),
+              schoolName: state.school?.name || 'Unknown',
+              schoolEmail: state.school?.email || 'Unknown',
+              teacherCount: state.teachers.length,
+              classCount: state.classes.length,
+              subjectCount: state.subjects.length,
+              timetableEntries: state.timetable.length,
+            }).catch(() => {})
+          }
+          
+          return
+        }
+        
+        await setData(state)
+        if (state.storageWarning) {
+          dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: null })
+        }
+      } catch (e) {
+        console.error('Failed to save data to IndexedDB:', e)
+        dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: 'Failed to save data. Please try again.' })
+      }
+    }
+    saveData()
+  }, [state, loading])
+
+  const dispatch = dispatchRef.current
 
   const checkConflicts = useCallback((entry, existingTimetable = state.timetable) => {
     const conflicts = []
@@ -701,6 +707,16 @@ export function AppProvider({ children }) {
     state,
     dispatch,
     checkConflicts,
+    loading,
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600 mx-auto"></div>
+        <p className="mt-4 text-sm text-slate-600">Loading data...</p>
+      </div>
+    </div>
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
