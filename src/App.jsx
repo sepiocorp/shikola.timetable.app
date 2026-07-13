@@ -28,6 +28,7 @@ import Pupils from './pages/Pupils.jsx'
 import SubjectAssignments from './pages/SubjectAssignments.jsx'
 import ManageRooms from './pages/ManageRooms.jsx'
 import CompareTimetables from './pages/CompareTimetables.jsx'
+import WhatsNew, { useWhatsNew } from './components/WhatsNew.jsx'
 
 function UndoToast() {
   const { state, dispatch } = useApp()
@@ -142,6 +143,7 @@ export default function App() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [storageLimitModal, setStorageLimitModal] = useState(false)
+  const { showWhatsNew, dismissWhatsNew } = useWhatsNew()
 
   useEffect(() => {
     const duration = 800
@@ -370,6 +372,7 @@ export default function App() {
           {pages[page]}
         </div>
       </div>
+      <WhatsNew open={showWhatsNew} onClose={dismissWhatsNew} />
       <UndoToast />
       <SuccessToast />
 

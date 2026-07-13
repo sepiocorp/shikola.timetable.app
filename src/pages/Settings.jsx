@@ -4,6 +4,8 @@ import { sounds } from '../utils/sounds.js'
 import { Button, Input, Select, Card, PageHeader, Modal, Toggle, Badge, Tabs, SkeletonCard } from '../components/UI.jsx'
 import { sendRegistration, trackEvent } from '../utils/telemetry.js'
 import BackupRestore from './BackupRestore.jsx'
+import { ChangelogList } from '../components/WhatsNew.jsx'
+import { APP_VERSION } from '../data/changelog.js'
 
 const ALL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -1226,7 +1228,7 @@ export default function Settings({ searchQuery }) {
                 <h2 className="text-2xl font-bold text-slate-800">Shikola Timetable Creator</h2>
                 <p className="text-sm text-slate-500 mt-1">by Sepio Corp</p>
                 <div className="flex items-center gap-2 mt-3">
-                  <Badge color="blue">Version 1.0.0</Badge>
+                  <Badge color="blue">Version {APP_VERSION}</Badge>
                   <Badge color="green">Desktop App</Badge>
                   <Badge color="slate">Offline</Badge>
                 </div>
@@ -1337,7 +1339,10 @@ export default function Settings({ searchQuery }) {
             </div>
           </Card>
 
-         
+          <Card className="p-6 mb-6">
+            <h3 className="text-sm font-bold text-slate-700 mb-4">Changelog</h3>
+            <ChangelogList />
+          </Card>
 
           <div className="text-center py-6">
             <p className="text-xs text-slate-400">&copy; {new Date().getFullYear()} Shikola Timetable Creator powered by Sepio Corp. All rights reserved.</p>
