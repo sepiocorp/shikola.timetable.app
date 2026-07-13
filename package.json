@@ -43,7 +43,9 @@
       "displayLanguageSelector": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Shikola Timetable Creator"
+      "shortcutName": "Shikola Timetable Creator",
+      "runAfterFinish": true,
+      "allowElevation": true
     }
   },
   "dependencies": {
