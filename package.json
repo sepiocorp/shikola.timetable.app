@@ -40,7 +40,9 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "license": "build/license.txt",
-      "installerLanguages": ["en_US"],
+      "installerLanguages": [
+        "en_US"
+      ],
       "deleteAppDataOnUninstall": false,
       "displayLanguageSelector": false,
       "createDesktopShortcut": true,
@@ -48,9 +50,15 @@
       "shortcutName": "Shikola Timetable Creator",
       "runAfterFinish": true,
       "allowElevation": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "sepiocorp",
+      "repo": "shikola.timetable.app"
     }
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "exceljs": "^4.4.0",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",

@@ -160,6 +160,8 @@ export default function App() {
   const [showUpdates, setShowUpdates] = useState(false)
   const [updateStatus, setUpdateStatus] = useState(null)
   const [installInfo, setInstallInfo] = useState(null)
+  const [autoUpdateInfo, setAutoUpdateInfo] = useState(null)
+  const [downloadProgress, setDownloadProgress] = useState(null)
   const { showWhatsNew, dismissWhatsNew } = useWhatsNew()
 
   useEffect(() => {
@@ -206,6 +208,35 @@ export default function App() {
         }
       }).catch(() => {})
     }
+  }, [state.telemetry?.analyticsEnabled])
+
+  // Auto-updater: listen for background update events from Electron
+  useEffect(() => {
+    const updater = window.electronAPI?.updater
+    if (!updater) return
+
+    updater.onAvailable((info) => {
+      setDownloadProgress({ percent: 0 })
+      if (state.telemetry?.analyticsEnabled) {
+        trackEvent('update_available', { version: info.version })
+      }
+    })
+    updater.onProgress((progress) => {
+      setDownloadProgress(progress)
+    })
+    updater.onDownloaded((info) => {
+      setDownloadProgress(null)
+      setAutoUpdateInfo({
+        version: info.version,
+        releaseNotes: info.releaseNotes,
+      })
+      if (state.telemetry?.analyticsEnabled) {
+        trackEvent('update_downloaded', { version: info.version })
+      }
+    })
+    updater.onError(() => {
+      setDownloadProgress(null)
+    })
   }, [state.telemetry?.analyticsEnabled])
 
   // Telemetry: send launch event and set up crash handling based on consent
@@ -501,6 +532,74 @@ export default function App() {
       <WhatsNew open={showWhatsNew} onClose={dismissWhatsNew} installInfo={installInfo} />
       <UndoToast />
       <SuccessToast />
+
+      {/* Auto-update download progress toast */}
+      {downloadProgress && (
+        <div className="fixed bottom-4 right-4 z-[200] animate-fade-in">
+          <div className="bg-white rounded-lg shadow-xl border border-slate-200 px-4 py-3 w-72">
+            <div className="flex items-center gap-3 mb-2">
+              <svg className="w-5 h-5 text-brand-600 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-slate-700">Downloading update...</p>
+                <p className="text-xs text-slate-500">{downloadProgress.percent}%</p>
+              </div>
+            </div>
+            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full bg-brand-600 rounded-full transition-all duration-300" style={{ width: `${downloadProgress.percent}%` }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auto-update ready notification toast */}
+      {autoUpdateInfo && (
+        <div className="fixed bottom-4 right-4 z-[200] animate-fade-in">
+          <div className="bg-white rounded-lg shadow-xl border border-slate-200 px-4 py-3 w-80">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-slate-700">Update ready to install</p>
+                <p className="text-xs text-slate-500 mt-0.5">v{autoUpdateInfo.version} has been downloaded. Restart to apply.</p>
+              </div>
+              <button
+                onClick={() => setAutoUpdateInfo(null)}
+                className="text-slate-400 hover:text-slate-600 flex-shrink-0"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  window.electronAPI?.updater?.installNow()
+                  setAutoUpdateInfo(null)
+                }}
+                className="flex-1 px-3 py-2 bg-brand-600 text-white text-xs font-medium rounded-lg hover:bg-brand-700 transition-colors"
+              >
+                Install now & restart
+              </button>
+              <button
+                onClick={() => {
+                  window.electronAPI?.updater?.installOnQuit()
+                  setAutoUpdateInfo(null)
+                }}
+                className="flex-1 px-3 py-2 bg-slate-100 text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-200 transition-colors"
+              >
+                Install on quit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Modal open={showDocs} onClose={() => setShowDocs(false)} title="Documentation" maxWidth="max-w-4xl">
         <Documentation />

@@ -5,6 +5,18 @@ const telemetry = require('./telemetry')
 
 const isDev = process.env.VITE_DEV === 'true'
 
+// Auto-updater (production only)
+let autoUpdater = null
+if (!isDev) {
+  try {
+    autoUpdater = require('electron-updater').autoUpdater
+    autoUpdater.autoDownload = true
+    autoUpdater.autoInstallOnAppQuit = true
+  } catch (err) {
+    console.error('[AutoUpdater] Failed to load:', err.message)
+  }
+}
+
 // Track install/update info
 let installInfo = null
 
@@ -263,10 +275,84 @@ ipcMain.handle('telemetry:getConsent', async () => {
   return null
 })
 
+// --- Auto-updater IPC handlers ---
+ipcMain.handle('update:installNow', () => {
+  if (autoUpdater) {
+    autoUpdater.quitAndInstall(false, true)
+  }
+})
+
+ipcMain.handle('update:installOnQuit', () => {
+  if (autoUpdater) {
+    autoUpdater.autoInstallOnAppQuit = true
+  }
+})
+
+// --- Auto-updater event forwarding to renderer ---
+function setupAutoUpdater() {
+  if (!autoUpdater) return
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('[AutoUpdater] Update available:', info.version)
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('update:available', {
+        version: info.version,
+        releaseNotes: info.releaseNotes,
+        releaseDate: info.releaseDate,
+      })
+    })
+  })
+
+  autoUpdater.on('update-not-available', () => {
+    console.log('[AutoUpdater] No updates available')
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('update:not-available')
+    })
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('[AutoUpdater] Update downloaded:', info.version)
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('update:downloaded', {
+        version: info.version,
+        releaseNotes: info.releaseNotes,
+      })
+    })
+  })
+
+  autoUpdater.on('error', (err) => {
+    console.error('[AutoUpdater] Error:', err.message)
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('update:error', { message: err.message })
+    })
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('update:progress', {
+        percent: Math.round(progress.percent),
+        transferred: progress.transferred,
+        total: progress.total,
+      })
+    })
+  })
+}
+
 app.whenReady().then(() => {
   detectInstallInfo()
   buildMenu()
   createWindow()
+
+  // Start auto-update check after a short delay (production only)
+  if (autoUpdater) {
+    setupAutoUpdater()
+    setTimeout(() => {
+      console.log('[AutoUpdater] Checking for updates...')
+      autoUpdater.checkForUpdates().catch((err) => {
+        console.error('[AutoUpdater] Check failed:', err.message)
+      })
+    }, 5000)
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
