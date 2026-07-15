@@ -341,6 +341,12 @@ function reducer(state, action) {
     case 'SET_STORAGE_WARNING':
       return { ...state, storageWarning: action.payload }
 
+    case 'SET_APP_LOCKED':
+      return { ...state, appLocked: true, lockReason: action.payload }
+
+    case 'SET_APP_UNLOCKED':
+      return { ...state, appLocked: false, lockReason: null }
+
     case 'SET_TELEMETRY':
       return { ...state, telemetry: { ...state.telemetry, ...action.payload } }
 
@@ -493,6 +499,25 @@ function reducer(state, action) {
         subjects: state.subjects.map(s => s.departmentId === action.payload ? { ...s, departmentId: '' } : s),
       }
 
+    case 'BULK_ADD_DEPARTMENTS':
+      return { ...state, departments: [...state.departments, ...action.payload.map(d => ({ ...d, id: genId() }))] }
+
+    case 'BULK_ASSIGN_TEACHERS_DEPT': {
+      const updates = new Map(action.payload.map(u => [u.id, u.departmentId]))
+      return {
+        ...state,
+        teachers: state.teachers.map(t => updates.has(t.id) ? { ...t, departmentId: updates.get(t.id) } : t),
+      }
+    }
+
+    case 'BULK_ASSIGN_SUBJECTS_DEPT': {
+      const updates = new Map(action.payload.map(u => [u.id, u.departmentId]))
+      return {
+        ...state,
+        subjects: state.subjects.map(s => updates.has(s.id) ? { ...s, departmentId: updates.get(s.id) } : s),
+      }
+    }
+
     // === Subject Assignments ===
     case 'ADD_SUBJECT_ASSIGNMENT':
       return { ...state, subjectAssignments: [...state.subjectAssignments, { ...action.payload, id: genId() }] }
@@ -546,6 +571,7 @@ export function AppProvider({ children }) {
   const [state, setState] = useState(defaultData)
   const [loading, setLoading] = useState(true)
   const dispatchRef = useRef(null)
+  const storageWarningDismissedRef = useRef(false)
 
   // Initialize dispatch ref
   dispatchRef.current = useCallback((action) => {
@@ -559,7 +585,10 @@ export function AppProvider({ children }) {
         const data = await loadData()
         setState(data)
         setLoading(false)
-        
+
+        // Check app limits on load
+        checkAppLimits(data)
+
         // Send storage usage analytics on load
         if (window.electronAPI?.telemetry?.trackEvent) {
           const dataSize = new Blob([JSON.stringify(data)]).size
@@ -588,42 +617,105 @@ export function AppProvider({ children }) {
   // Save data to IndexedDB on state changes
   useEffect(() => {
     if (loading) return
-    
+
     async function saveData() {
       try {
         // Check storage limit before saving
         const dataSize = new Blob([JSON.stringify(state)]).size
         const sizeMB = dataSize / (1024 * 1024)
-        if (sizeMB > 100) {
-          dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: 'Storage limit exceeded (100 MB). Please download the Shikola Management System or contact us for assistance.' })
-          
-          // Send notification to Sepio Corp about storage limit exceeded
-          if (window.electronAPI?.telemetry?.trackEvent) {
-            window.electronAPI.telemetry.trackEvent('storage_limit_exceeded', {
-              storageSizeMB: sizeMB.toFixed(2),
-              schoolName: state.school?.name || 'Unknown',
-              schoolEmail: state.school?.email || 'Unknown',
-              teacherCount: state.teachers.length,
-              classCount: state.classes.length,
-              subjectCount: state.subjects.length,
-              timetableEntries: state.timetable.length,
-            }).catch(() => {})
+        if (sizeMB > 15) {
+          if (!storageWarningDismissedRef.current && !state.storageWarning) {
+            dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: 'Storage limit exceeded (15 MB). Please download the Shikola Management System or contact us for assistance.' })
+
+            // Send notification to Sepio Corp about storage limit exceeded
+            if (window.electronAPI?.telemetry?.trackEvent) {
+              window.electronAPI.telemetry.trackEvent('storage_limit_exceeded', {
+                storageSizeMB: sizeMB.toFixed(2),
+                schoolName: state.school?.name || 'Unknown',
+                schoolEmail: state.school?.email || 'Unknown',
+                teacherCount: state.teachers.length,
+                classCount: state.classes.length,
+                subjectCount: state.subjects.length,
+                timetableEntries: state.timetable.length,
+              }).catch(() => {})
+            }
           }
-          
           return
         }
-        
+
         await setData(state)
+        storageWarningDismissedRef.current = false
         if (state.storageWarning) {
           dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: null })
         }
       } catch (e) {
         console.error('Failed to save data to IndexedDB:', e)
-        dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: 'Failed to save data. Please try again.' })
+        if (!storageWarningDismissedRef.current && !state.storageWarning) {
+          dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: 'Failed to save data. Please try again.' })
+        }
       }
     }
     saveData()
   }, [state, loading])
+
+  // Check app limits (entity count + storage size) — locks app if exceeded
+  const ENTITY_LIMIT = 100
+  const STORAGE_LIMIT_MB = 15
+
+  const checkAppLimits = useCallback((data) => {
+    const entityCount =
+      (data.teachers?.length || 0) +
+      (data.classes?.length || 0) +
+      (data.subjects?.length || 0) +
+      (data.rooms?.length || 0)
+
+    const dataSize = new Blob([JSON.stringify(data)]).size
+    const sizeMB = dataSize / (1024 * 1024)
+
+    if (entityCount > ENTITY_LIMIT) {
+      dispatchRef.current({
+        type: 'SET_APP_LOCKED',
+        payload: {
+          type: 'entity_limit',
+          message: `You have exceeded the free tier limit of ${ENTITY_LIMIT} total entities (teachers + classes + subjects + rooms). You currently have ${entityCount} entities.`,
+        },
+      })
+      if (window.electronAPI?.telemetry?.trackEvent) {
+        window.electronAPI.telemetry.trackEvent('app_locked_entity_limit', {
+          entityCount,
+          limit: ENTITY_LIMIT,
+          schoolName: data.school?.name || 'Unknown',
+          schoolEmail: data.school?.email || 'Unknown',
+        }).catch(() => {})
+      }
+      return
+    }
+
+    if (sizeMB > STORAGE_LIMIT_MB) {
+      dispatchRef.current({
+        type: 'SET_APP_LOCKED',
+        payload: {
+          type: 'storage_limit',
+          message: `You have exceeded the free tier storage limit of ${STORAGE_LIMIT_MB} MB. Your data is currently ${sizeMB.toFixed(2)} MB.`,
+        },
+      })
+      if (window.electronAPI?.telemetry?.trackEvent) {
+        window.electronAPI.telemetry.trackEvent('app_locked_storage_limit', {
+          storageSizeMB: sizeMB.toFixed(2),
+          limit: STORAGE_LIMIT_MB,
+          schoolName: data.school?.name || 'Unknown',
+          schoolEmail: data.school?.email || 'Unknown',
+        }).catch(() => {})
+      }
+      return
+    }
+  }, [])
+
+  // Re-check limits whenever entity counts change
+  useEffect(() => {
+    if (loading) return
+    checkAppLimits(state)
+  }, [state.teachers, state.classes, state.subjects, state.rooms, loading, checkAppLimits])
 
   const dispatch = dispatchRef.current
 
@@ -703,11 +795,26 @@ export function AppProvider({ children }) {
     return conflicts
   }, [state.timetable, state.teachers, state.classes, state.rooms, state.settings.periods, state.teacherTimeOff])
 
+  const entityCount =
+    (state.teachers?.length || 0) +
+    (state.classes?.length || 0) +
+    (state.subjects?.length || 0) +
+    (state.rooms?.length || 0)
+
+  const dismissStorageWarning = useCallback(() => {
+    storageWarningDismissedRef.current = true
+    dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: null })
+  }, [])
+
   const value = {
     state,
     dispatch,
     checkConflicts,
     loading,
+    entityCount,
+    entityLimit: 100,
+    storageLimitMB: 15,
+    dismissStorageWarning,
   }
 
   if (loading) {

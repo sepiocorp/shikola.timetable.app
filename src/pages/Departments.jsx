@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
 import { Button, Input, Card, PageHeader, Modal, EmptyState, Badge, Tabs, SkeletonCard } from '../components/UI.jsx'
+import BulkImportModal from '../components/BulkImportModal.jsx'
 
 export default function Departments({ searchQuery }) {
   const { state, dispatch } = useApp()
@@ -21,6 +22,8 @@ export default function Departments({ searchQuery }) {
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({ name: '', code: '', headTeacherId: '' })
   const [viewMode, setViewMode] = useState('list')
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkType, setBulkType] = useState('departments')
 
   const openAdd = () => {
     setEditing(null)
@@ -102,7 +105,12 @@ export default function Departments({ searchQuery }) {
               <Button variant="secondary" onClick={() => { setViewMode(viewMode === 'list' ? 'grid' : 'list'); sounds.click() }}>
                 {viewMode === 'list' ? 'Grid View' : 'List View'}
               </Button>
+              <Button variant="secondary" onClick={() => { sounds.click(); setBulkType('departments'); setBulkOpen(true) }}>Bulk Import</Button>
               <Button onClick={openAdd}>+ Add Department</Button>
+            </>}
+            {tab === 'assignments' && <>
+              <Button variant="secondary" onClick={() => { sounds.click(); setBulkType('deptTeachers'); setBulkOpen(true) }}>Bulk Import Teachers</Button>
+              <Button variant="secondary" onClick={() => { sounds.click(); setBulkType('deptSubjects'); setBulkOpen(true) }}>Bulk Import Subjects</Button>
             </>}
           </div>
         }
@@ -336,6 +344,8 @@ export default function Departments({ searchQuery }) {
           </div>
         </div>
       </Modal>
+
+      <BulkImportModal open={bulkOpen} onClose={() => setBulkOpen(false)} type={bulkType} />
     </div>
   )
 }

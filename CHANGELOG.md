@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ---
 
+## [1.0.5] — Monster — 2026-07-15
+
+### Added
+- In-app update checking via GitHub Releases (Help → Check for Updates)
+- Automated release publishing script for distributing new versions
+
+### Changed
+- Update modal now shows release notes and download link when a newer version is available
+
+---
+
 ## [1.0.4] — Guardian — 2026-07-13
 
 ### Added

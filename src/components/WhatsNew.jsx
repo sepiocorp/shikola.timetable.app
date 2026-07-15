@@ -27,10 +27,12 @@ export function useWhatsNew() {
   return { showWhatsNew, dismissWhatsNew, setShowWhatsNew }
 }
 
-export default function WhatsNew({ open, onClose }) {
+export default function WhatsNew({ open, onClose, installInfo }) {
   if (!open) return null
 
   const latest = CHANGELOG[0]
+  const isUpdate = installInfo?.isUpdate
+  const isFirstInstall = installInfo?.isFirstInstall
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/40" onClick={onClose}>
@@ -40,7 +42,7 @@ export default function WhatsNew({ open, onClose }) {
           <div className="flex items-center gap-3 mb-2">
             <img src="./logo.png" alt="Shikola" className="w-10 h-10 rounded-lg bg-white/20 object-contain" />
             <div>
-              <h2 className="text-lg font-bold">What's New</h2>
+              <h2 className="text-lg font-bold">{isUpdate ? 'Updated Successfully!' : isFirstInstall ? 'Welcome!' : "What's New"}</h2>
               <p className="text-xs text-brand-100">Shikola Timetable Creator</p>
             </div>
           </div>
@@ -49,10 +51,15 @@ export default function WhatsNew({ open, onClose }) {
             <span className="px-2 py-0.5 rounded text-xs font-medium bg-white/20">{latest.codename}</span>
             <span className="text-xs text-brand-100">{latest.date}</span>
           </div>
+          {isUpdate && installInfo?.previousVersion && (
+            <p className="text-xs text-brand-100 mt-2">
+              Updated from v{installInfo.previousVersion} to v{installInfo.currentVersion}
+            </p>
+          )}
         </div>
 
-        {/* Changes */}
-        <div className="p-6">
+          {/* Changes */}
+          <div className="p-6">
           <h3 className="text-sm font-bold text-slate-700 mb-4">{latest.title}</h3>
           <div className="space-y-3">
             {latest.changes.map((change, i) => (

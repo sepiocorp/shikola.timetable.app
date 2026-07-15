@@ -67,6 +67,8 @@ const defaultData = {
   lastDeleted: null,
   successMessage: null,
   storageWarning: null,
+  appLocked: false,
+  lockReason: null,
   telemetry: {
     registered: true,
     analyticsEnabled: true,

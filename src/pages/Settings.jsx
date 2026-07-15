@@ -11,14 +11,54 @@ const ALL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satur
 
 const COLOR_PRESETS = [
   { name: 'Blue', primary: '#2563eb', accent: '#3b82f6' },
-  { name: 'Indigo', primary: '#4f46e5', accent: '#6366f1' },
+  { name: 'Zambia Green', primary: '#198a00', accent: '#f36614' },
   { name: 'Teal', primary: '#0d9488', accent: '#14b8a6' },
   { name: 'Emerald', primary: '#059669', accent: '#10b981' },
-  { name: 'Violet', primary: '#7c3aed', accent: '#8b5cf6' },
+  { name: 'Zambia Red', primary: '#d41c30', accent: '#2b67ce' },
   { name: 'Rose', primary: '#e11d48', accent: '#f43f5e' },
-  { name: 'Amber', primary: '#d97706', accent: '#f59e0b' },
+  { name: 'Zambia Orange', primary: '#f36614', accent: '#198a00' },
   { name: 'Slate', primary: '#475569', accent: '#64748b' },
 ]
+
+const SUB_TABS = {
+  school: [
+    { id: 'info', label: 'Info' },
+    { id: 'days', label: 'Days' },
+    { id: 'periods', label: 'Periods' },
+    { id: 'sections', label: 'Sections' },
+    { id: 'academic', label: 'Academic' },
+    { id: 'buildings', label: 'Buildings' },
+  ],
+  appearance: [
+    { id: 'colors', label: 'Colors & Display' },
+    { id: 'language', label: 'Language' },
+    { id: 'fields', label: 'Custom Fields' },
+  ],
+  advanced: [
+    { id: 'lunch', label: 'Lunch' },
+    { id: 'cycle', label: 'Multi-Week' },
+    { id: 'blocks', label: 'Blocks' },
+  ],
+  data: [
+    { id: 'backup', label: 'Backup' },
+    { id: 'restore', label: 'Restore' },
+  ],
+  about: [
+    { id: 'about', label: 'About' },
+    { id: 'customization', label: 'Customization' },
+    { id: 'limits', label: 'Limits' },
+    { id: 'privacy', label: 'Privacy' },
+    { id: 'changelog', label: 'Changelog' },
+  ],
+}
+
+const DEFAULT_SUB_TAB = {
+  school: 'info',
+  appearance: 'colors',
+  advanced: 'lunch',
+  data: 'backup',
+  about: 'about',
+}
 
 const ABOUT_FEATURES = [
   { icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', title: 'Timetable Editor', desc: 'Create and edit class timetables with automatic conflict detection' },
@@ -164,7 +204,7 @@ function CustomFieldForm({ onAdd, state }) {
 }
 
 export default function Settings({ searchQuery }) {
-  const { state, dispatch } = useApp()
+  const { state, dispatch, entityCount, entityLimit } = useApp()
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -177,6 +217,7 @@ export default function Settings({ searchQuery }) {
   const [selectedDays, setSelectedDays] = useState(state.settings.days)
   const [resetModal, setResetModal] = useState(false)
   const [settingsTab, setSettingsTab] = useState('school')
+  const [subTab, setSubTab] = useState('info')
   const [periodModal, setPeriodModal] = useState(false)
   const [editingPeriod, setEditingPeriod] = useState(null)
   const [periodForm, setPeriodForm] = useState({ name: '', type: 'term', startDate: '', endDate: '' })
@@ -501,25 +542,31 @@ export default function Settings({ searchQuery }) {
         <Tabs
           tabs={[
             { id: 'school', label: 'School' },
-            { id: 'sections', label: 'Sections' },
-            { id: 'periods', label: 'Academic Periods' },
             { id: 'appearance', label: 'Appearance' },
             { id: 'advanced', label: 'Advanced' },
-            { id: 'education', label: 'Education Blocks' },
-            { id: 'customFields', label: 'Custom Fields' },
             { id: 'data', label: 'Data' },
-            { id: 'backup', label: 'Backup & Restore' },
-            { id: 'privacy', label: 'Privacy & Telemetry' },
             { id: 'about', label: 'About' },
           ]}
           active={settingsTab}
-          onChange={(id) => { setSettingsTab(id); sounds.click() }}
+          onChange={(id) => { setSettingsTab(id); setSubTab(DEFAULT_SUB_TAB[id] || (SUB_TABS[id] && SUB_TABS[id][0].id)); sounds.click() }}
         />
       </div>
+
+      {/* Sub Tabs */}
+      {SUB_TABS[settingsTab] && (
+        <div className="mb-4">
+          <Tabs
+            tabs={SUB_TABS[settingsTab]}
+            active={subTab}
+            onChange={(id) => { setSubTab(id); sounds.click() }}
+          />
+        </div>
+      )}
 
       {/* School Info Tab */}
       {settingsTab === 'school' && (
         <>
+          {subTab === 'info' && (
           <Card className="p-6 mb-6">
             <h3 className="text-sm font-bold text-slate-700 mb-4">School Information</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -574,7 +621,9 @@ export default function Settings({ searchQuery }) {
               <Button onClick={handleSchoolSave}>Save School Info</Button>
             </div>
           </Card>
+          )}
 
+          {subTab === 'days' && (
           <Card className="p-6 mb-6">
             <h3 className="text-sm font-bold text-slate-700 mb-4">School Days</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
@@ -594,7 +643,9 @@ export default function Settings({ searchQuery }) {
             </div>
             <Button onClick={handleDaysSave}>Save Days</Button>
           </Card>
+          )}
 
+          {subTab === 'periods' && (
           <Card className="p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-slate-700">Period Times</h3>
@@ -638,11 +689,11 @@ export default function Settings({ searchQuery }) {
               <Button onClick={handlePeriodsSave}>Save Period Times</Button>
             </div>
           </Card>
+          )}
         </>
       )}
 
-      {/* Sections Tab */}
-      {settingsTab === 'sections' && (
+      {settingsTab === 'school' && subTab === 'sections' && (
         <Card className="p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-slate-700">School Sections</h3>
@@ -706,8 +757,7 @@ export default function Settings({ searchQuery }) {
         </Card>
       )}
 
-      {/* Academic Periods Tab */}
-      {settingsTab === 'periods' && (
+      {settingsTab === 'school' && subTab === 'academic' && (
         <Card className="p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-slate-700">Academic Periods</h3>
@@ -775,7 +825,7 @@ export default function Settings({ searchQuery }) {
       )}
 
       {/* Appearance Tab */}
-      {settingsTab === 'appearance' && (
+      {settingsTab === 'appearance' && subTab === 'colors' && (
         <Card className="p-6 mb-6">
           <h3 className="text-sm font-bold text-slate-700 mb-4">Appearance & Customization</h3>
 
@@ -853,6 +903,7 @@ export default function Settings({ searchQuery }) {
       {/* Advanced Tab */}
       {settingsTab === 'advanced' && (
         <>
+          {subTab === 'lunch' && (
           <Card className="p-6 mb-6">
             <h3 className="text-sm font-bold text-slate-700 mb-4">Lunch Constraint</h3>
             <p className="text-xs text-slate-500 mb-4">Ensure lunch break is scheduled within a specific period range.</p>
@@ -895,7 +946,9 @@ export default function Settings({ searchQuery }) {
               )}
             </div>
           </Card>
+          )}
 
+          {subTab === 'cycle' && (
           <Card className="p-6 mb-6">
             <h3 className="text-sm font-bold text-slate-700 mb-4">Multi-Week Cycle</h3>
             <p className="text-xs text-slate-500 mb-4">Set the number of weeks in the scheduling cycle (for rotating timetables).</p>
@@ -911,63 +964,69 @@ export default function Settings({ searchQuery }) {
               <span className="text-sm text-slate-500">week(s) per cycle</span>
             </div>
           </Card>
-
-          <Card className="p-6 mb-6">
-            <h3 className="text-sm font-bold text-slate-700 mb-4">Language</h3>
-            <p className="text-xs text-slate-500 mb-4">Interface language preference.</p>
-            <div className="flex flex-wrap gap-3">
-              {[
-                { code: 'en', label: 'English' },
-                { code: 'ch', label: 'Chokwe' },
-                { code: 'bem', label: 'Bemba' },
-                { code: 'ny', label: 'Nyanja' },
-                { code: 'loz', label: 'Lozi' },
-                { code: 'toi', label: 'Tonga' },
-                { code: 'kqn', label: 'Kaonde' },
-                { code: 'lue', label: 'Luvale' },
-                { code: 'lun', label: 'Lunda' },
-              ].map(lang => (
-                <button
-                  key={lang.code}
-                  onClick={() => { dispatch({ type: 'SET_LANGUAGE', payload: lang.code }); sounds.click() }}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    state.language === lang.code
-                      ? 'bg-brand-100 text-brand-700 border border-brand-300'
-                      : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  {lang.label}
-                </button>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="p-6 mb-6">
-            <h3 className="text-sm font-bold text-slate-700 mb-4">Buildings</h3>
-            <p className="text-xs text-slate-500 mb-4">Manage campus buildings for room assignments.</p>
-            <div className="space-y-2 mb-4">
-              {state.buildings.map(b => (
-                <div key={b.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                  <div>
-                    <p className="text-sm font-medium text-slate-700">{b.name}</p>
-                    {b.floors && <p className="text-xs text-slate-500">{b.floors} floor(s)</p>}
-                  </div>
-                  <button onClick={() => { dispatch({ type: 'DELETE_BUILDING', payload: b.id }); sounds.delete() }} className="text-slate-400 hover:text-red-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
-              {state.buildings.length === 0 && <p className="text-sm text-slate-400">No buildings added yet.</p>}
-            </div>
-            <BuildingForm onAdd={(data) => { dispatch({ type: 'ADD_BUILDING', payload: data }); sounds.add() }} />
-          </Card>
+          )}
         </>
       )}
 
-      {/* Education Blocks Tab */}
-      {settingsTab === 'education' && (
+      {/* Language - merged into Appearance */}
+      {settingsTab === 'appearance' && subTab === 'language' && (
+        <Card className="p-6 mb-6">
+          <h3 className="text-sm font-bold text-slate-700 mb-4">Language</h3>
+          <p className="text-xs text-slate-500 mb-4">Interface language preference.</p>
+          <div className="flex flex-wrap gap-3">
+            {[
+              { code: 'en', label: 'English' },
+              { code: 'ch', label: 'Chokwe' },
+              { code: 'bem', label: 'Bemba' },
+              { code: 'ny', label: 'Nyanja' },
+              { code: 'loz', label: 'Lozi' },
+              { code: 'toi', label: 'Tonga' },
+              { code: 'kqn', label: 'Kaonde' },
+              { code: 'lue', label: 'Luvale' },
+              { code: 'lun', label: 'Lunda' },
+            ].map(lang => (
+              <button
+                key={lang.code}
+                onClick={() => { dispatch({ type: 'SET_LANGUAGE', payload: lang.code }); sounds.click() }}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                state.language === lang.code
+                  ? 'bg-brand-100 text-brand-700 border border-brand-300'
+                  : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300'
+              }`}
+              >
+                {lang.label}
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Buildings - merged into School */}
+      {settingsTab === 'school' && subTab === 'buildings' && (
+        <Card className="p-6 mb-6">
+          <h3 className="text-sm font-bold text-slate-700 mb-4">Buildings</h3>
+          <p className="text-xs text-slate-500 mb-4">Manage campus buildings for room assignments.</p>
+          <div className="space-y-2 mb-4">
+            {state.buildings.map(b => (
+              <div key={b.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium text-slate-700">{b.name}</p>
+                  {b.floors && <p className="text-xs text-slate-500">{b.floors} floor(s)</p>}
+                </div>
+                <button onClick={() => { dispatch({ type: 'DELETE_BUILDING', payload: b.id }); sounds.delete() }} className="text-slate-400 hover:text-red-500">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+            {state.buildings.length === 0 && <p className="text-sm text-slate-400">No buildings added yet.</p>}
+          </div>
+          <BuildingForm onAdd={(data) => { dispatch({ type: 'ADD_BUILDING', payload: data }); sounds.add() }} />
+        </Card>
+      )}
+
+      {settingsTab === 'advanced' && subTab === 'blocks' && (
         <Card className="p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -1001,8 +1060,7 @@ export default function Settings({ searchQuery }) {
         </Card>
       )}
 
-      {/* Custom Fields Tab */}
-      {settingsTab === 'customFields' && (
+      {settingsTab === 'appearance' && subTab === 'fields' && (
         <Card className="p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -1049,6 +1107,7 @@ export default function Settings({ searchQuery }) {
       {/* Data Tab */}
       {settingsTab === 'data' && (
         <>
+          {subTab === 'backup' && (
           <Card className="p-6 mb-6">
             <h3 className="text-sm font-bold text-slate-700 mb-4">Data Management</h3>
             <div className="flex flex-wrap gap-3">
@@ -1062,18 +1121,333 @@ export default function Settings({ searchQuery }) {
               <Button variant="danger" onClick={() => { sounds.click(); setResetModal(true) }}>Reset All Data</Button>
             </div>
           </Card>
+          )}
 
         </>
       )}
 
-      {/* Backup & Restore Tab */}
-      {settingsTab === 'backup' && (
+      {settingsTab === 'data' && subTab === 'restore' && (
         <BackupRestore embedded />
       )}
 
-      {/* Privacy & Telemetry Tab */}
-      {settingsTab === 'privacy' && (
+      {/* About Tab */}
+      {settingsTab === 'about' && (
         <>
+          {subTab === 'about' && (
+            <>
+          <Card className="p-8 mb-6">
+            <div className="flex items-center gap-6">
+              {state.school?.logo ? (
+                <img src={state.school.logo} alt="School logo" className="w-20 h-20 rounded-xl object-contain bg-white border border-slate-200" />
+              ) : (
+                <img src="./logo.png" alt="Shikola logo" className="w-20 h-20 rounded-xl object-contain" />
+              )}
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800">Shikola Timetable Creator</h2>
+                <p className="text-sm text-slate-500 mt-1">by Sepio Corp</p>
+                <div className="flex items-center gap-2 mt-3">
+                  <Badge color="blue">Version {APP_VERSION}</Badge>
+                  <Badge color="green">Desktop App</Badge>
+                  <Badge color="slate">Offline</Badge>
+                </div>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 mt-6 leading-relaxed">
+              Shikola Timetable Creator is a powerful, offline-first desktop application designed to help schools
+              create, manage, and export professional timetables with ease. Built with simplicity and efficiency in mind,
+              it provides automatic conflict detection, smart timetable generation, and flexible export options — all
+              without requiring an internet connection.
+            </p>
+          </Card>
+
+          <h3 className="text-sm font-bold text-slate-700 mb-3">Key Features</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+            {ABOUT_FEATURES.map(feature => (
+              <Card key={feature.title} className="p-5">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-brand-50 flex items-center justify-center flex-shrink-0">
+                    {feature.aiLogo ? (
+                      <img src="./ai.png" alt="AI" className="w-6 h-6 object-contain" />
+                    ) : (
+                      <svg className="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d={feature.icon} />
+                      </svg>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">{feature.title}</p>
+                    <p className="text-xs text-slate-500 mt-1">{feature.desc}</p>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+            </>
+          )}
+
+          {subTab === 'customization' && (
+            <>
+              <Card className="p-6 mb-6">
+                <h3 className="text-sm font-bold text-slate-700 mb-4">Customization Capabilities</h3>
+                <p className="text-sm text-slate-600 mb-6 leading-relaxed">
+                  Shikola Timetable Creator is highly customizable. Here's everything you can tailor to your school's needs:
+                </p>
+
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3">Appearance &amp; Visual</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Color Themes</p><p className="text-xs text-slate-500">8 presets + custom primary/accent color pickers</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Table Themes</p><p className="text-xs text-slate-500">Striped, grid, or plain styles</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Display Toggles</p><p className="text-xs text-slate-500">Show/hide school header, teacher, room in cells</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Sound Effects</p><p className="text-xs text-slate-500">Enable or disable interaction sounds</p></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3">School Branding</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">School Profile</p><p className="text-xs text-slate-500">Name, motto, academic year, term, address, phone, email</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Logo Upload</p><p className="text-xs text-slate-500">PNG, JPG or SVG up to 2MB — shown on exports</p></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3">Schedule Structure</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">School Days</p><p className="text-xs text-slate-500">Toggle any of 7 days on/off</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Period Times</p><p className="text-xs text-slate-500">Full control over names, start/end, breaks</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Sections</p><p className="text-xs text-slate-500">Custom units with own days, periods &amp; sessions</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Academic Periods</p><p className="text-xs text-slate-500">Week, term, quarter, semester, or full year</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Multi-Week Cycle</p><p className="text-xs text-slate-500">1–4 week rotating cycle for scheduling</p></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3">Advanced Scheduling</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Lunch Constraint</p><p className="text-xs text-slate-500">Enforce lunch within a period range</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Education Blocks</p><p className="text-xs text-slate-500">Multi-period blocks for specific subjects/classes</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Buildings</p><p className="text-xs text-slate-500">Campus buildings with floor counts</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Custom Fields on Cards</p><p className="text-xs text-slate-500">Custom text on timetable cells, scoped by subject/class</p></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3">Language &amp; Data</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">9 Languages</p><p className="text-xs text-slate-500">English, Chokwe, Bemba, Nyanja, Lozi, Tonga, Kaonde, Luvale, Lunda</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Backup &amp; Restore</p><p className="text-xs text-slate-500">JSON export/import and reset</p></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </>
+          )}
+
+          {subTab === 'limits' && (
+            <>
+          <Card className="p-6 mb-6">
+            <h3 className="text-sm font-bold text-slate-700 mb-3">Free Tier Limits</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">Total Entities:</span>
+                <span className={`font-medium ${entityCount > entityLimit ? 'text-red-600' : entityCount > entityLimit * 0.8 ? 'text-amber-600' : 'text-slate-800'}`}>
+                  {entityCount} / {entityLimit}
+                  <span className="text-xs text-slate-400 ml-1">(teachers + classes + subjects + rooms)</span>
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all ${entityCount > entityLimit ? 'bg-red-500' : entityCount > entityLimit * 0.8 ? 'bg-amber-500' : 'bg-brand-500'}`}
+                  style={{ width: `${Math.min(100, (entityCount / entityLimit) * 100)}%` }}
+                />
+              </div>
+              {entityCount > entityLimit * 0.8 && entityCount <= entityLimit && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs text-amber-700 font-semibold mb-1">Approaching Entity Limit</p>
+                  <p className="text-xs text-amber-600">
+                    You are nearing the free tier limit of {entityLimit} entities. Consider downloading the Shikola Management System for unlimited access.
+                  </p>
+                </div>
+              )}
+              {entityCount > entityLimit && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-xs text-red-700 font-semibold mb-1">Entity Limit Exceeded</p>
+                  <p className="text-xs text-red-600 mb-2">
+                    You have exceeded the free tier limit of {entityLimit} entities. The app will be locked. Please download the Shikola Management System or contact sales.
+                  </p>
+                  <div className="flex gap-2">
+                    <a href="https://shikola.org" target="_blank" rel="noopener noreferrer" className="text-xs px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 font-medium">Download SMS</a>
+                    <a href="mailto:sales@shikola.org" className="text-xs px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium">Contact Sales</a>
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center justify-between text-sm pt-2 border-t border-slate-100">
+                <span className="text-slate-600">Storage Used:</span>
+                <span className="font-medium text-slate-800">
+                  {(() => {
+                    try {
+                      const data = JSON.stringify(state)
+                      const used = new Blob([data]).size
+                      const usedMB = (used / (1024 * 1024)).toFixed(2)
+                      return `${usedMB} MB`
+                    } catch (e) {
+                      return 'Unknown'
+                    }
+                  })()}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">Storage Type:</span>
+                <span className="font-medium text-slate-800">IndexedDB</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">Estimated Limit:</span>
+                <span className="font-medium text-slate-800">15 MB</span>
+              </div>
+              {(() => {
+                try {
+                  const data = JSON.stringify(state)
+                  const used = new Blob([data]).size
+                  const usedMB = used / (1024 * 1024)
+                  if (usedMB > 15) {
+                    return (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <p className="text-xs text-red-700 font-semibold mb-1">Storage Limit Exceeded</p>
+                        <p className="text-xs text-red-600 mb-2">You have exceeded the 15 MB storage limit.</p>
+                        <Button size="sm" onClick={() => setStorageLimitModal(true)}>View Options</Button>
+                      </div>
+                    )
+                  }
+                  return null
+                } catch (e) {
+                  return null
+                }
+              })()}
+              {state.storageWarning && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs text-amber-700">{state.storageWarning}</p>
+                </div>
+              )}
+              <p className="text-xs text-slate-500">
+                Your data is stored in IndexedDB with a 15 MB limit. If you need more storage, please contact us for assistance.
+              </p>
+            </div>
+          </Card>
+
+          <Card className="p-6 mb-6">
+            <h3 className="text-sm font-bold text-slate-700 mb-4">Upgrading &amp; Solutions</h3>
+            <p className="text-xs text-slate-500 mb-4">
+              The free tier has limits on entities and storage. To remove these restrictions, choose one of the options below:
+            </p>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 p-4 bg-brand-50 rounded-lg border border-brand-200">
+                <svg className="w-5 h-5 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-700">Download Shikola Management System (SMS)</p>
+                  <p className="text-xs text-slate-500 mt-1">The full desktop application with unlimited entities, unlimited storage, and advanced management features.</p>
+                  <a href="https://shikola.org" target="_blank" rel="noopener noreferrer" className="inline-block mt-2 text-xs px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 font-medium">Download SMS</a>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <svg className="w-5 h-5 text-slate-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-700">Contact Sales</p>
+                  <p className="text-xs text-slate-500 mt-1">Reach out to our team for licensing, bulk deployments, or custom solutions for your institution.</p>
+                  <a href="mailto:sales@shikola.org" className="inline-block mt-2 text-xs px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium">Email Sales</a>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <svg className="w-5 h-5 text-slate-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-700">Contact Support</p>
+                  <p className="text-xs text-slate-500 mt-1">Experiencing storage issues or need technical assistance? Our support team can help.</p>
+                  <a href="mailto:support@shikola.org" className="inline-block mt-2 text-xs px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium">Email Support</a>
+                </div>
+              </div>
+            </div>
+          </Card>
+            </>
+          )}
+
+          {subTab === 'privacy' && (
+            <>
+          <Card className="p-6 mb-6">
+            <h3 className="text-sm font-bold text-slate-700 mb-3">Data Privacy</h3>
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="text-sm text-slate-600">
+                <p className="font-semibold text-slate-700 mb-1">Local Storage & Optional Telemetry</p>
+                <p className="text-xs">
+                  All your data — school information, teachers, classes, subjects, rooms, and timetables — is stored
+                  locally on your device. With your consent, the app can also send registration info, anonymous
+                  analytics, and crash reports to Sepio Corp. You can control these options in
+                  Settings &rarr; Privacy & Telemetry.
+                </p>
+              </div>
+            </div>
+          </Card>
+
           <Card className="p-6 mb-6">
             <h3 className="text-sm font-bold text-slate-700 mb-4">Privacy & Telemetry Settings</h3>
             <p className="text-xs text-slate-500 mb-6 leading-relaxed">
@@ -1211,134 +1585,11 @@ export default function Settings({ searchQuery }) {
               </p>
             </div>
           </Card>
-        </>
-      )}
+            </>
+          )}
 
-      {/* About Tab */}
-      {settingsTab === 'about' && (
-        <>
-          <Card className="p-8 mb-6">
-            <div className="flex items-center gap-6">
-              {state.school?.logo ? (
-                <img src={state.school.logo} alt="School logo" className="w-20 h-20 rounded-xl object-contain bg-white border border-slate-200" />
-              ) : (
-                <img src="./logo.png" alt="Shikola logo" className="w-20 h-20 rounded-xl object-contain" />
-              )}
-              <div>
-                <h2 className="text-2xl font-bold text-slate-800">Shikola Timetable Creator</h2>
-                <p className="text-sm text-slate-500 mt-1">by Sepio Corp</p>
-                <div className="flex items-center gap-2 mt-3">
-                  <Badge color="blue">Version {APP_VERSION}</Badge>
-                  <Badge color="green">Desktop App</Badge>
-                  <Badge color="slate">Offline</Badge>
-                </div>
-              </div>
-            </div>
-            <p className="text-sm text-slate-600 mt-6 leading-relaxed">
-              Shikola Timetable Creator is a powerful, offline-first desktop application designed to help schools
-              create, manage, and export professional timetables with ease. Built with simplicity and efficiency in mind,
-              it provides automatic conflict detection, smart timetable generation, and flexible export options — all
-              without requiring an internet connection.
-            </p>
-          </Card>
-
-          <h3 className="text-sm font-bold text-slate-700 mb-3">Key Features</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-            {ABOUT_FEATURES.map(feature => (
-              <Card key={feature.title} className="p-5">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-brand-50 flex items-center justify-center flex-shrink-0">
-                    {feature.aiLogo ? (
-                      <img src="./ai.png" alt="AI" className="w-6 h-6 object-contain" />
-                    ) : (
-                      <svg className="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d={feature.icon} />
-                      </svg>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">{feature.title}</p>
-                    <p className="text-xs text-slate-500 mt-1">{feature.desc}</p>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-
-          <Card className="p-6 mb-6">
-            <h3 className="text-sm font-bold text-slate-700 mb-3">Storage Usage</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">Storage Used:</span>
-                <span className="font-medium text-slate-800">
-                  {(() => {
-                    try {
-                      const data = JSON.stringify(state)
-                      const used = new Blob([data]).size
-                      const usedMB = (used / (1024 * 1024)).toFixed(2)
-                      return `${usedMB} MB`
-                    } catch (e) {
-                      return 'Unknown'
-                    }
-                  })()}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">Storage Type:</span>
-                <span className="font-medium text-slate-800">IndexedDB</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">Estimated Limit:</span>
-                <span className="font-medium text-slate-800">100 MB</span>
-              </div>
-              {(() => {
-                try {
-                  const data = JSON.stringify(state)
-                  const used = new Blob([data]).size
-                  const usedMB = used / (1024 * 1024)
-                  if (usedMB > 100) {
-                    return (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                        <p className="text-xs text-red-700 font-semibold mb-1">Storage Limit Exceeded</p>
-                        <p className="text-xs text-red-600 mb-2">You have exceeded the 100 MB storage limit.</p>
-                        <Button size="sm" onClick={() => setStorageLimitModal(true)}>View Options</Button>
-                      </div>
-                    )
-                  }
-                  return null
-                } catch (e) {
-                  return null
-                }
-              })()}
-              {state.storageWarning && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  <p className="text-xs text-amber-700">{state.storageWarning}</p>
-                </div>
-              )}
-              <p className="text-xs text-slate-500">
-                Your data is stored in IndexedDB with a 100 MB limit. If you need more storage, please contact us for assistance.
-              </p>
-            </div>
-          </Card>
-
-          <Card className="p-6 mb-6">
-            <h3 className="text-sm font-bold text-slate-700 mb-3">Data Privacy</h3>
-            <div className="flex items-start gap-3">
-              <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div className="text-sm text-slate-600">
-                <p className="font-semibold text-slate-700 mb-1">Local Storage & Optional Telemetry</p>
-                <p className="text-xs">
-                  All your data — school information, teachers, classes, subjects, rooms, and timetables — is stored
-                  locally on your device. With your consent, the app can also send registration info, anonymous
-                  analytics, and crash reports to Sepio Corp. You can control these options in
-                  Settings &rarr; Privacy & Telemetry.
-                </p>
-              </div>
-            </div>
-          </Card>
-
+          {subTab === 'changelog' && (
+            <>
           <Card className="p-6 mb-6">
             <h3 className="text-sm font-bold text-slate-700 mb-4">Changelog</h3>
             <ChangelogList />
@@ -1348,6 +1599,8 @@ export default function Settings({ searchQuery }) {
             <p className="text-xs text-slate-400">&copy; {new Date().getFullYear()} Shikola Timetable Creator powered by Sepio Corp. All rights reserved.</p>
             <p className="text-xs text-slate-300 mt-1">Made with care for educators worldwide.</p>
           </div>
+            </>
+          )}
         </>
       )}
 
@@ -1489,7 +1742,7 @@ export default function Settings({ searchQuery }) {
         <div className="p-6">
           <h3 className="text-lg font-bold text-slate-800 mb-2">Storage Limit Exceeded</h3>
           <p className="text-sm text-slate-600 mb-4">
-            You have exceeded the 100 MB storage limit. To continue using Shikola Timetable, please choose one of the following options:
+            You have exceeded the 15 MB storage limit. To continue using Shikola Timetable, please choose one of the following options:
           </p>
           <div className="space-y-3">
             <a

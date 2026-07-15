@@ -1,6 +1,17 @@
-export const APP_VERSION = '1.0.4'
+export const APP_VERSION = '1.0.5'
 
 export const CHANGELOG = [
+  {
+    version: '1.0.5',
+    codename: 'Monster',
+    date: '2026-07-15',
+    title: 'What\'s New in v1.0.5',
+    changes: [
+      { type: 'feature', text: 'Added in-app update checking via GitHub Releases (Help → Check for Updates)' },
+      { type: 'feature', text: 'Added automated release publishing script for distributing new versions' },
+      { type: 'improvement', text: 'Update modal now shows release notes and download link when a newer version is available' },
+    ],
+  },
   {
     version: '1.0.4',
     codename: 'Guardian',
@@ -15,11 +26,11 @@ export const CHANGELOG = [
   },
   {
     version: '1.0.3',
-    codename: 'Guardian',
+    codename: 'Galaxy',
     date: '2026-07-10',
     title: 'What\'s New in v1.0.3',
     changes: [
-      { type: 'feature', text: 'Added storage limit monitoring (100 MB) with warning banner and telemetry notifications' },
+      { type: 'feature', text: 'Added storage limit monitoring (15 MB) with warning banner and telemetry notifications' },
       { type: 'feature', text: 'Added optional telemetry: analytics, crash reporting, and registration info sent to Sepio Corp' },
       { type: 'feature', text: 'Added installer consent flow for telemetry opt-in during setup' },
       { type: 'improvement', text: 'Improved NSIS installer settings for smoother app upgrades' },
@@ -27,7 +38,7 @@ export const CHANGELOG = [
   },
   {
     version: '1.0.2',
-    codename: 'Guardian',
+    codename: 'Gummy Bear',
     date: '2026-07-05',
     title: 'What\'s New in v1.0.2',
     changes: [

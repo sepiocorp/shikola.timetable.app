@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('menu-timetable', (_e, action) => callback('timetable', action))
     ipcRenderer.on('menu-help', (_e, action) => callback('help', action))
   },
+  getInstallInfo: () => ipcRenderer.invoke('app:getInstallInfo'),
+  checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
 
   // Telemetry APIs - all gated by user consent in the UI
   telemetry: {

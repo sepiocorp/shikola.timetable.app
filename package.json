@@ -1,7 +1,7 @@
 {
   "name": "shikola-timetable-creator",
-  "version": "1.0.4",
-  "codename": "Guardian",
+  "version": "1.0.5",
+  "codename": "Monster",
   "description": "Offline timetable creator for schools - by Sepio Corp",
   "author": "Sepio Corp",
   "license": "SEE LICENSE IN LICENSE",
@@ -12,7 +12,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "electron .",
-    "dist": "vite build && electron-builder"
+    "dist": "vite build && electron-builder",
+    "publish-release": "node scripts/publish-release.js",
+    "publish": "npm run dist && node scripts/publish-release.js --upload"
   },
   "build": {
     "appId": "com.sepiocorp.shikola-timetable",

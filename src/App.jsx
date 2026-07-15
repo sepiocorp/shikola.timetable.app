@@ -29,6 +29,8 @@ import SubjectAssignments from './pages/SubjectAssignments.jsx'
 import ManageRooms from './pages/ManageRooms.jsx'
 import CompareTimetables from './pages/CompareTimetables.jsx'
 import WhatsNew, { useWhatsNew } from './components/WhatsNew.jsx'
+import { APP_VERSION } from './data/changelog.js'
+import LockScreen from './components/LockScreen.jsx'
 
 function UndoToast() {
   const { state, dispatch } = useApp()
@@ -113,7 +115,7 @@ function SuccessToast() {
 }
 
 function StorageWarningBanner({ onOpenModal }) {
-  const { state, dispatch } = useApp()
+  const { state, dismissStorageWarning } = useApp()
   if (!state.storageWarning) return null
   return (
     <div className="fixed top-0 left-0 right-0 z-[200] bg-amber-500 text-white text-center py-2 px-4 text-sm flex items-center justify-center gap-3">
@@ -122,13 +124,25 @@ function StorageWarningBanner({ onOpenModal }) {
       </svg>
       <span className="flex-1">{state.storageWarning}</span>
       <button onClick={onOpenModal} className="text-white/90 hover:text-white underline font-medium">View Options</button>
-      <button onClick={() => dispatch({ type: 'SET_STORAGE_WARNING', payload: null })} className="text-white/80 hover:text-white ml-2">
+      <button onClick={dismissStorageWarning} className="text-white/80 hover:text-white ml-2">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
     </div>
   )
+}
+
+function compareVersions(latest, current) {
+  const l = latest.split('.').map(Number)
+  const c = current.split('.').map(Number)
+  for (let i = 0; i < Math.max(l.length, c.length); i++) {
+    const lv = l[i] || 0
+    const cv = c[i] || 0
+    if (lv > cv) return true
+    if (lv < cv) return false
+  }
+  return false
 }
 
 export default function App() {
@@ -143,6 +157,9 @@ export default function App() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [storageLimitModal, setStorageLimitModal] = useState(false)
+  const [showUpdates, setShowUpdates] = useState(false)
+  const [updateStatus, setUpdateStatus] = useState(null)
+  const [installInfo, setInstallInfo] = useState(null)
   const { showWhatsNew, dismissWhatsNew } = useWhatsNew()
 
   useEffect(() => {
@@ -176,6 +193,20 @@ export default function App() {
   useEffect(() => {
     setSoundEnabled(state.appearance?.soundEnabled !== false)
   }, [state.appearance?.soundEnabled])
+
+  // Detect install vs update from Electron main process
+  useEffect(() => {
+    if (window.electronAPI?.getInstallInfo) {
+      window.electronAPI.getInstallInfo().then((info) => {
+        setInstallInfo(info)
+        if (info?.isUpdate && state.telemetry?.analyticsEnabled) {
+          trackEvent('app_updated', { from: info.previousVersion, to: info.currentVersion })
+        } else if (info?.isFirstInstall && state.telemetry?.analyticsEnabled) {
+          trackEvent('app_installed', { version: info.currentVersion })
+        }
+      }).catch(() => {})
+    }
+  }, [state.telemetry?.analyticsEnabled])
 
   // Telemetry: send launch event and set up crash handling based on consent
   useEffect(() => {
@@ -216,6 +247,36 @@ export default function App() {
         }
         if (category === 'help' && action === 'docs') {
           setShowDocs(true)
+          return
+        }
+        if (category === 'help' && action === 'check-updates') {
+          setShowUpdates(true)
+          setUpdateStatus('checking')
+          const checkUpdates = window.electronAPI?.checkForUpdates
+            ? window.electronAPI.checkForUpdates()
+            : fetch('https://api.github.com/repos/sepiocorp/shikola.timetable.app/releases/latest')
+                .then(res => res.json())
+                .then(data => data?.tag_name
+                  ? { success: true, tag_name: data.tag_name, html_url: data.html_url, body: data.body }
+                  : { success: false, error: 'Could not retrieve update information.' }
+                )
+          Promise.resolve(checkUpdates)
+            .then(result => {
+              if (result?.success && result.tag_name) {
+                const latest = result.tag_name.replace(/^v/, '')
+                const isNewer = compareVersions(latest, APP_VERSION)
+                if (isNewer) {
+                  setUpdateStatus({ status: 'available', latestVersion: latest, currentVersion: APP_VERSION, downloadUrl: result.html_url, releaseNotes: result.body })
+                } else {
+                  setUpdateStatus({ status: 'up-to-date', latestVersion: latest, currentVersion: APP_VERSION })
+                }
+              } else {
+                setUpdateStatus({ status: 'error', message: result?.error || 'Could not retrieve update information.' })
+              }
+            })
+            .catch(() => {
+              setUpdateStatus({ status: 'error', message: 'Failed to check for updates. Please check your internet connection.' })
+            })
           return
         }
         const menuMap = {
@@ -265,8 +326,73 @@ export default function App() {
         <Modal open={showAbout} onClose={() => setShowAbout(false)} title="About Shikola Timetable Creator" maxWidth="max-w-3xl">
           <About />
         </Modal>
+        <Modal open={showUpdates} onClose={() => setShowUpdates(false)} title="Check for Updates" maxWidth="max-w-md">
+          <div className="p-6">
+            {updateStatus === 'checking' && (
+              <div className="flex flex-col items-center py-8">
+                <svg className="animate-spin w-8 h-8 text-brand-600 mb-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                <p className="text-sm text-slate-600">Checking for updates...</p>
+              </div>
+            )}
+            {updateStatus?.status === 'up-to-date' && (
+              <div className="flex flex-col items-center py-8">
+                <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mb-4">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <p className="text-sm font-semibold text-slate-700">You're up to date!</p>
+                <p className="text-xs text-slate-500 mt-1">Shikola Timetable Creator v{updateStatus.currentVersion} is the latest version.</p>
+              </div>
+            )}
+            {updateStatus?.status === 'available' && (
+              <div className="py-4">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">Update available!</p>
+                    <p className="text-xs text-slate-500">v{updateStatus.currentVersion} → v{updateStatus.latestVersion}</p>
+                  </div>
+                </div>
+                {updateStatus.releaseNotes && (
+                  <div className="bg-slate-50 rounded-lg p-3 mb-4 max-h-40 overflow-y-auto">
+                    <p className="text-xs font-medium text-slate-600 mb-1">Release Notes:</p>
+                    <p className="text-xs text-slate-500 whitespace-pre-wrap">{updateStatus.releaseNotes}</p>
+                  </div>
+                )}
+                <a href={updateStatus.downloadUrl} target="_blank" rel="noopener noreferrer" className="block w-full text-center px-4 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium text-sm">Download Update</a>
+              </div>
+            )}
+            {updateStatus?.status === 'error' && (
+              <div className="flex flex-col items-center py-8">
+                <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+                  <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <p className="text-sm font-semibold text-slate-700">Unable to check for updates</p>
+                <p className="text-xs text-slate-500 mt-1 text-center">{updateStatus.message}</p>
+                <a href="https://shikola.org" target="_blank" rel="noopener noreferrer" className="mt-4 text-xs px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium">Visit shikola.org</a>
+              </div>
+            )}
+            <div className="mt-4 pt-4 border-t border-slate-200">
+              <button onClick={() => setShowUpdates(false)} className="w-full px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium">Close</button>
+            </div>
+          </div>
+        </Modal>
       </>
     )
+  }
+
+  if (state.appLocked) {
+    return <LockScreen lockReason={state.lockReason} />
   }
 
   const pages = {
@@ -372,7 +498,7 @@ export default function App() {
           {pages[page]}
         </div>
       </div>
-      <WhatsNew open={showWhatsNew} onClose={dismissWhatsNew} />
+      <WhatsNew open={showWhatsNew} onClose={dismissWhatsNew} installInfo={installInfo} />
       <UndoToast />
       <SuccessToast />
 
@@ -383,11 +509,86 @@ export default function App() {
         <About />
       </Modal>
 
+      {/* Check for Updates Modal */}
+      <Modal open={showUpdates} onClose={() => setShowUpdates(false)} title="Check for Updates" maxWidth="max-w-md">
+        <div className="p-6">
+          {updateStatus === 'checking' && (
+            <div className="flex flex-col items-center py-8">
+              <svg className="animate-spin w-8 h-8 text-brand-600 mb-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              <p className="text-sm text-slate-600">Checking for updates...</p>
+            </div>
+          )}
+          {updateStatus?.status === 'up-to-date' && (
+            <div className="flex flex-col items-center py-8">
+              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-sm font-semibold text-slate-700">You're up to date!</p>
+              <p className="text-xs text-slate-500 mt-1">Shikola Timetable Creator v{updateStatus.currentVersion} is the latest version.</p>
+            </div>
+          )}
+          {updateStatus?.status === 'available' && (
+            <div className="py-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Update available!</p>
+                  <p className="text-xs text-slate-500">v{updateStatus.currentVersion} → v{updateStatus.latestVersion}</p>
+                </div>
+              </div>
+              {updateStatus.releaseNotes && (
+                <div className="bg-slate-50 rounded-lg p-3 mb-4 max-h-40 overflow-y-auto">
+                  <p className="text-xs font-medium text-slate-600 mb-1">Release Notes:</p>
+                  <p className="text-xs text-slate-500 whitespace-pre-wrap">{updateStatus.releaseNotes}</p>
+                </div>
+              )}
+              <a
+                href={updateStatus.downloadUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full text-center px-4 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium text-sm"
+              >
+                Download Update
+              </a>
+            </div>
+          )}
+          {updateStatus?.status === 'error' && (
+            <div className="flex flex-col items-center py-8">
+              <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <p className="text-sm font-semibold text-slate-700">Unable to check for updates</p>
+              <p className="text-xs text-slate-500 mt-1 text-center">{updateStatus.message}</p>
+              <a href="https://shikola.org" target="_blank" rel="noopener noreferrer" className="mt-4 text-xs px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium">Visit shikola.org</a>
+            </div>
+          )}
+          <div className="mt-4 pt-4 border-t border-slate-200">
+            <button
+              onClick={() => setShowUpdates(false)}
+              className="w-full px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Storage Limit Modal */}
       <Modal open={storageLimitModal} onClose={() => setStorageLimitModal(false)} title="Storage Limit Exceeded">
         <div className="p-6">
           <p className="text-sm text-slate-600 mb-4">
-            You have exceeded the 100 MB storage limit. To continue using Shikola Timetable, please choose one of the following options:
+            You have exceeded the 15 MB storage limit. To continue using Shikola Timetable, please choose one of the following options:
           </p>
           <div className="space-y-3">
             <a

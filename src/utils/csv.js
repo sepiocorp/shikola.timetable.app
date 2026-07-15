@@ -34,6 +34,34 @@ const TEMPLATES = {
       ['Pupil Name 2', 'Class Name 2', 'pupil2@school.com', '0987654321', 'Subject 3;Subject 4'],
     ],
   },
+  departments: {
+    filename: 'departments_template.csv',
+    headers: ['name', 'code', 'headTeacher'],
+    sampleRows: [
+      ['Mathematics', 'MATH', 'Teacher Name 1'],
+      ['English', 'ENG', 'Teacher Name 2'],
+      ['Science', 'SCI', ''],
+    ],
+  },
+  deptTeachers: {
+    filename: 'dept_teacher_assignments_template.csv',
+    headers: ['teacherName', 'departmentName'],
+    sampleRows: [
+      ['Teacher Name 1', 'Mathematics'],
+      ['Teacher Name 2', 'English'],
+      ['Teacher Name 3', 'Science'],
+    ],
+  },
+  deptSubjects: {
+    filename: 'dept_subject_assignments_template.csv',
+    headers: ['subjectName', 'departmentName'],
+    sampleRows: [
+      ['Mathematics', 'Mathematics'],
+      ['Further Maths', 'Mathematics'],
+      ['English Language', 'English'],
+      ['Physics', 'Science'],
+    ],
+  },
 }
 
 export function downloadCSVTemplate(type) {

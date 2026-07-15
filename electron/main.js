@@ -5,6 +5,49 @@ const telemetry = require('./telemetry')
 
 const isDev = process.env.VITE_DEV === 'true'
 
+// Track install/update info
+let installInfo = null
+
+function detectInstallInfo() {
+  if (installInfo) return installInfo
+  const userDataPath = app.getPath('userData')
+  const versionFile = path.join(userDataPath, 'app-version.json')
+  const currentVersion = app.getVersion()
+
+  let previousVersion = null
+  let isUpdate = false
+  let isFirstInstall = true
+
+  try {
+    if (fs.existsSync(versionFile)) {
+      const data = JSON.parse(fs.readFileSync(versionFile, 'utf-8'))
+      previousVersion = data.version
+      isFirstInstall = false
+      if (previousVersion !== currentVersion) {
+        isUpdate = true
+      }
+    }
+  } catch (err) {
+    console.error('[Install] Failed to read version file:', err.message)
+  }
+
+  // Write current version for future checks
+  try {
+    fs.writeFileSync(versionFile, JSON.stringify({ version: currentVersion, installedAt: new Date().toISOString() }))
+  } catch (err) {
+    console.error('[Install] Failed to write version file:', err.message)
+  }
+
+  installInfo = {
+    currentVersion,
+    previousVersion,
+    isFirstInstall,
+    isUpdate,
+  }
+  console.log('[Install]', installInfo)
+  return installInfo
+}
+
 // Start crash reporter (actual transmission is gated by user consent in UI)
 crashReporter.start({
   productName: 'Shikola Timetable Creator',
@@ -65,6 +108,11 @@ function buildMenu() {
         {
           label: 'Documentation',
           click: () => { BrowserWindow.getFocusedWindow()?.webContents.send('menu-help', 'docs') },
+        },
+        { type: 'separator' },
+        {
+          label: 'Check for Updates',
+          click: () => { BrowserWindow.getFocusedWindow()?.webContents.send('menu-help', 'check-updates') },
         },
       ],
     },
@@ -164,6 +212,42 @@ ipcMain.handle('telemetry:launch', async () => {
   }
 })
 
+// Get install/update info for renderer
+ipcMain.handle('app:getInstallInfo', async () => {
+  return detectInstallInfo()
+})
+
+// Check for updates via GitHub Releases API (main process avoids CORS issues)
+ipcMain.handle('app:checkForUpdates', async () => {
+  try {
+    const https = require('https')
+    const options = {
+      hostname: 'api.github.com',
+      path: '/repos/sepiocorp/shikola.timetable.app/releases/latest',
+      headers: {
+        'User-Agent': 'Shikola-Timetable-Creator',
+        'Accept': 'application/vnd.github+json',
+      },
+    }
+    const data = await new Promise((resolve, reject) => {
+      https.get(options, (res) => {
+        let body = ''
+        res.on('data', (chunk) => { body += chunk })
+        res.on('end', () => {
+          try { resolve(JSON.parse(body)) } catch { resolve(null) }
+        })
+      }).on('error', reject)
+    })
+    if (data && data.tag_name) {
+      return { success: true, tag_name: data.tag_name, html_url: data.html_url, body: data.body }
+    }
+    return { success: false, error: 'Could not retrieve update information.' }
+  } catch (err) {
+    console.error('[Update] Check failed:', err.message)
+    return { success: false, error: 'Failed to check for updates. Please check your internet connection.' }
+  }
+})
+
 // Read telemetry consent from installer-written file
 ipcMain.handle('telemetry:getConsent', async () => {
   try {
@@ -180,6 +264,7 @@ ipcMain.handle('telemetry:getConsent', async () => {
 })
 
 app.whenReady().then(() => {
+  detectInstallInfo()
   buildMenu()
   createWindow()
 

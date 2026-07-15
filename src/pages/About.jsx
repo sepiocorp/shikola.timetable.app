@@ -94,15 +94,7 @@ export default function About() {
         </div>
       </Card>
 
-      {/* Tech Stack */}
-      <Card className="p-6 mb-6">
-        <h3 className="text-sm font-bold text-slate-700 mb-3">Built With</h3>
-        <div className="flex flex-wrap gap-2">
-          {['React 18', 'Electron', 'Vite', 'Tailwind CSS', 'jsPDF', 'PapaParse'].map(tech => (
-            <Badge key={tech} color="slate">{tech}</Badge>
-          ))}
-        </div>
-      </Card>
+    
 
       {/* License & Copyright */}
       <Card className="p-6 mb-6">
