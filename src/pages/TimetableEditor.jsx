@@ -403,7 +403,7 @@ export default function TimetableEditor({ navigate, searchQuery }) {
                         {display ? (
                           <div className="text-center">
                             <div className="flex items-center justify-center gap-1">
-                              <p className="text-xs font-semibold text-slate-800">{display.subject?.name || '—'}</p>
+                              <p className="text-sm font-bold text-slate-800">{display.subject?.name || '—'}</p>
                               {display.entry.lessonLength > 1 && (
                                 <span className="text-[9px] font-bold text-brand-600 bg-brand-100 rounded px-1">{display.entry.lessonLength}x</span>
                               )}

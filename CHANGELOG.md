@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ---
 
+## [1.0.6] — Monster — 2026-07-17
+
+### Added
+- Break periods now included in all PDF and Excel exports (single, master, and bulk) with distinct gray styling
+- Rich text formatting for multi-line cells in Excel exports (bold first line, smaller subsequent lines)
+
+### Changed
+- Subject name is now displayed first (before class/teacher) across all timetable views for consistency
+- Increased font size and weight of subject names in Timetable Editor, Print Preview, and View Timetables for better readability
+- Fixed column ordering in CSV/Excel exports (Subject, Teacher, Class instead of Teacher, Class, Subject)
+- Adjusted column widths in Excel exports for better layout
+
+---
+
 ## [1.0.5] — Monster — 2026-07-15
 
 ### Added

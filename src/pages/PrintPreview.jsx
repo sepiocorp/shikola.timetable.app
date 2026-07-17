@@ -414,7 +414,7 @@ const PrintPreview = forwardRef(function PrintPreview({ navigate, embedded, onBa
                                 <td key={period.id} className="border-2 border-slate-300 p-1 text-center align-middle">
                                   {display ? (
                                     <div>
-                                      <p className="font-semibold text-slate-800">{display.subject?.name || '—'}</p>
+                                      <p className="font-bold text-slate-800" style={{ fontSize: '1.15em' }}>{display.subject?.name || '—'}</p>
                                       {showTeacher && viewType === 'class' && <p className="text-[11px] text-slate-500">{display.teacher?.name || '—'}</p>}
                                       {showRoom && <p className="text-[11px] text-slate-400">{display.room?.name || ''}</p>}
                                     </div>
@@ -470,7 +470,7 @@ const PrintPreview = forwardRef(function PrintPreview({ navigate, embedded, onBa
                       <td key={period.id} className="border-2 border-slate-300 p-1 text-center align-middle">
                         {display ? (
                           <div>
-                            <p className="font-semibold text-slate-800">
+                            <p className="font-bold text-slate-800" style={{ fontSize: '1.15em' }}>
                               {display.subject?.name || '—'}
                               {display.lessonLength > 1 && <span className="text-[10px] text-brand-600 ml-1">({display.lessonLength}x)</span>}
                             </p>

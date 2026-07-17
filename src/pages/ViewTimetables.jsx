@@ -62,14 +62,14 @@ export default function ViewTimetables({ navigate, searchQuery }) {
             const cls = state.classes.find(c => c.id === entry.classId)
             const subject = state.subjects.find(s => s.id === entry.subjectId)
             const room = state.rooms.find(r => r.id === entry.roomId)
-            if (cls) parts.push(cls.name)
             if (subject) parts.push(subject.name)
+            if (cls) parts.push(cls.name)
             if (room) parts.push(room.name)
           } else if (entry.secondaryTeacherId === teacherId) {
             const secClass = state.classes.find(c => c.id === entry.secondaryClassId)
             const secSubject = state.subjects.find(s => s.id === entry.secondarySubjectId)
-            if (secClass) parts.push(secClass.name)
             if (secSubject) parts.push(secSubject.name)
+            if (secClass) parts.push(secClass.name)
             parts.push('(Secondary)')
           }
           if (parts.length > 0) {
@@ -767,9 +767,9 @@ function TimetableView({ state, schedule, entries, rows, title, navigate }) {
                 return (
                   <td key={period.id} className="border border-slate-200 p-2 text-center">
                     {cellText ? (
-                      <div className="text-xs">
+                      <div>
                         {cellText.split('\n').map((line, i) => (
-                          <p key={i} className={i === 0 ? 'font-semibold text-slate-800' : 'text-slate-500'}>{line}</p>
+                          <p key={i} className={i === 0 ? 'text-sm font-bold text-slate-800' : 'text-[10px] text-slate-500'}>{line}</p>
                         ))}
                       </div>
                     ) : (
@@ -856,12 +856,12 @@ function MasterTimetableView({ state, masterData, navigate, sectionFilter }) {
                       <div className="space-y-1">
                         {entries.map(e => (
                           <div key={e.id} className="text-[10px] bg-brand-50 rounded px-1 py-0.5">
-                            <p className="font-semibold text-brand-800">{e.className}</p>
-                            <p className="text-slate-600">{e.subjectName}</p>
+                            <p className="text-sm font-bold text-slate-800">{e.subjectName}</p>
+                            <p className="text-brand-800">{e.className}</p>
                             <p className="text-slate-400">{e.teacherName}</p>
                             {e.secondaryClassName && (
                               <div className="mt-0.5 pt-0.5 border-t border-brand-100">
-                                <p className="font-semibold text-amber-700">{e.secondaryClassName}</p>
+                                <p className="text-amber-700">{e.secondaryClassName}</p>
                                 <p className="text-slate-500">{e.secondarySubjectName}</p>
                                 <p className="text-slate-400">{e.secondaryTeacherName}</p>
                               </div>
@@ -947,12 +947,13 @@ function DepartmentTimetableView({ state, deptMasterData, navigate, deptName }) 
                       <div className="space-y-1">
                         {entries.map(e => (
                           <div key={e.id} className="text-[10px] bg-brand-50 rounded px-1 py-0.5">
-                            <p className="font-semibold text-brand-800">{e.teacherName}</p>
-                            <p className="text-slate-600">{e.className} - {e.subjectName}</p>
+                            <p className="text-sm font-bold text-slate-800">{e.subjectName}</p>
+                            <p className="text-brand-800">{e.teacherName}</p>
+                            <p className="text-slate-600">{e.className}</p>
                             <p className="text-slate-400">{e.roomName}</p>
                             {e.secondaryClassName && (
                               <div className="mt-0.5 pt-0.5 border-t border-brand-100">
-                                <p className="font-semibold text-amber-700">{e.secondaryTeacherName}</p>
+                                <p className="text-amber-700">{e.secondaryTeacherName}</p>
                                 <p className="text-slate-500">{e.secondaryClassName} - {e.secondarySubjectName}</p>
                               </div>
                             )}
