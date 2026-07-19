@@ -1355,18 +1355,18 @@ export default function Settings({ searchQuery }) {
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-600">Estimated Limit:</span>
-                <span className="font-medium text-slate-800">15 MB</span>
+                <span className="font-medium text-slate-800">50 MB</span>
               </div>
               {(() => {
                 try {
                   const data = JSON.stringify(state)
                   const used = new Blob([data]).size
                   const usedMB = used / (1024 * 1024)
-                  if (usedMB > 15) {
+                  if (usedMB > 50) {
                     return (
                       <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                         <p className="text-xs text-red-700 font-semibold mb-1">Storage Limit Exceeded</p>
-                        <p className="text-xs text-red-600 mb-2">You have exceeded the 15 MB storage limit.</p>
+                        <p className="text-xs text-red-600 mb-2">You have exceeded the 50 MB storage limit.</p>
                         <Button size="sm" onClick={() => setStorageLimitModal(true)}>View Options</Button>
                       </div>
                     )
@@ -1382,7 +1382,7 @@ export default function Settings({ searchQuery }) {
                 </div>
               )}
               <p className="text-xs text-slate-500">
-                Your data is stored in IndexedDB with a 15 MB limit. If you need more storage, please contact us for assistance.
+                Your data is stored in IndexedDB with a 50 MB limit. If you need more storage, please contact us for assistance.
               </p>
             </div>
           </Card>
@@ -1742,7 +1742,7 @@ export default function Settings({ searchQuery }) {
         <div className="p-6">
           <h3 className="text-lg font-bold text-slate-800 mb-2">Storage Limit Exceeded</h3>
           <p className="text-sm text-slate-600 mb-4">
-            You have exceeded the 15 MB storage limit. To continue using Shikola Timetable, please choose one of the following options:
+            You have exceeded the 50 MB storage limit. To continue using Shikola Timetable, please choose one of the following options:
           </p>
           <div className="space-y-3">
             <a

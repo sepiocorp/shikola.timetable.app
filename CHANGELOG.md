@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ---
 
+## [1.0.7] — Titan — 2026-07-19
+
+### Added
+- Command Palette (Ctrl+K) for instant navigation to any page, teacher, class, subject, or room
+- All pages now accessible via routing — Rooms, Pupils, Print Preview, Teacher Constraints, Card Relationships, Timetable Verification, Statistics, Substitutions, Backup & Restore, Lesson Groups, Subject Assignments, and Compare Timetables
+
+### Changed
+- Increased storage limit from 15 MB to 50 MB for larger datasets
+
+---
+
 ## [1.0.6] — Monster — 2026-07-17
 
 ### Added

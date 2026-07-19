@@ -282,6 +282,17 @@ ipcMain.handle('update:installNow', () => {
   }
 })
 
+ipcMain.handle('update:downloadUpdate', async () => {
+  if (!autoUpdater) return { success: false, error: 'Auto-updater not available' }
+  try {
+    await autoUpdater.checkForUpdates()
+    return { success: true }
+  } catch (err) {
+    console.error('[AutoUpdater] Download trigger failed:', err.message)
+    return { success: false, error: err.message }
+  }
+})
+
 ipcMain.handle('update:installOnQuit', () => {
   if (autoUpdater) {
     autoUpdater.autoInstallOnAppQuit = true

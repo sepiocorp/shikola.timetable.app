@@ -623,9 +623,9 @@ export function AppProvider({ children }) {
         // Check storage limit before saving
         const dataSize = new Blob([JSON.stringify(state)]).size
         const sizeMB = dataSize / (1024 * 1024)
-        if (sizeMB > 15) {
+        if (sizeMB > 50) {
           if (!storageWarningDismissedRef.current && !state.storageWarning) {
-            dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: 'Storage limit exceeded (15 MB). Please download the Shikola Management System or contact us for assistance.' })
+            dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: 'Storage limit exceeded (50 MB). Please download the Shikola Management System or contact us for assistance.' })
 
             // Send notification to Sepio Corp about storage limit exceeded
             if (window.electronAPI?.telemetry?.trackEvent) {
@@ -660,7 +660,7 @@ export function AppProvider({ children }) {
 
   // Check app limits (entity count + storage size) — locks app if exceeded
   const ENTITY_LIMIT = 100
-  const STORAGE_LIMIT_MB = 15
+  const STORAGE_LIMIT_MB = 50
 
   const checkAppLimits = useCallback((data) => {
     const entityCount =
@@ -813,7 +813,7 @@ export function AppProvider({ children }) {
     loading,
     entityCount,
     entityLimit: 100,
-    storageLimitMB: 15,
+    storageLimitMB: 50,
     dismissStorageWarning,
   }
 

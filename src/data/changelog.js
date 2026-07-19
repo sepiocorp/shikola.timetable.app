@@ -1,6 +1,31 @@
-export const APP_VERSION = '1.0.5'
+export const APP_VERSION = '1.0.7'
 
 export const CHANGELOG = [
+  {
+    version: '1.0.7',
+    codename: 'Titan',
+    date: '2026-07-19',
+    title: 'What\'s New in v1.0.7',
+    changes: [
+      { type: 'feature', text: 'Added Command Palette (Ctrl+K) for instant navigation to any page, teacher, class, subject, or room' },
+      { type: 'feature', text: 'All pages now accessible via routing — Rooms, Pupils, Print Preview, Teacher Constraints, Card Relationships, Timetable Verification, Statistics, Substitutions, Backup & Restore, Lesson Groups, Subject Assignments, and Compare Timetables' },
+      { type: 'improvement', text: 'Increased storage limit from 15 MB to 50 MB for larger datasets' },
+    ],
+  },
+  {
+    version: '1.0.6',
+    codename: 'Monster',
+    date: '2026-07-17',
+    title: 'What\'s New in v1.0.6',
+    changes: [
+      { type: 'feature', text: 'Break periods now included in all PDF and Excel exports (single, master, and bulk) with distinct gray styling' },
+      { type: 'feature', text: 'Rich text formatting for multi-line cells in Excel exports (bold first line, smaller subsequent lines)' },
+      { type: 'improvement', text: 'Subject name is now displayed first (before class/teacher) across all timetable views for consistency' },
+      { type: 'improvement', text: 'Increased font size and weight of subject names in Timetable Editor, Print Preview, and View Timetables for better readability' },
+      { type: 'fix', text: 'Fixed column ordering in CSV/Excel exports (Subject, Teacher, Class instead of Teacher, Class, Subject)' },
+      { type: 'improvement', text: 'Adjusted column widths in Excel exports for better layout' },
+    ],
+  },
   {
     version: '1.0.5',
     codename: 'Monster',

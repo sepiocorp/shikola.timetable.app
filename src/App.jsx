@@ -28,7 +28,9 @@ import Pupils from './pages/Pupils.jsx'
 import SubjectAssignments from './pages/SubjectAssignments.jsx'
 import ManageRooms from './pages/ManageRooms.jsx'
 import CompareTimetables from './pages/CompareTimetables.jsx'
+import BackupRestore from './pages/BackupRestore.jsx'
 import WhatsNew, { useWhatsNew } from './components/WhatsNew.jsx'
+import CommandPalette from './components/CommandPalette.jsx'
 import { APP_VERSION } from './data/changelog.js'
 import LockScreen from './components/LockScreen.jsx'
 
@@ -162,6 +164,7 @@ export default function App() {
   const [installInfo, setInstallInfo] = useState(null)
   const [autoUpdateInfo, setAutoUpdateInfo] = useState(null)
   const [downloadProgress, setDownloadProgress] = useState(null)
+  const [showCommandPalette, setShowCommandPalette] = useState(false)
   const { showWhatsNew, dismissWhatsNew } = useWhatsNew()
 
   useEffect(() => {
@@ -186,6 +189,18 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('shikola-sidebar-collapsed', sidebarCollapsed)
   }, [sidebarCollapsed])
+
+  // Command Palette: Ctrl+K to open
+  useEffect(() => {
+    const handleKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setShowCommandPalette(v => !v)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [])
 
   useEffect(() => {
     const { primaryColor, accentColor } = state.appearance || {}
@@ -398,7 +413,21 @@ export default function App() {
                     <p className="text-xs text-slate-500 whitespace-pre-wrap">{updateStatus.releaseNotes}</p>
                   </div>
                 )}
-                <a href={updateStatus.downloadUrl} target="_blank" rel="noopener noreferrer" className="block w-full text-center px-4 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium text-sm">Download Update</a>
+                <button
+                  onClick={async () => {
+                    const result = await window.electronAPI?.updater?.downloadUpdate()
+                    if (result?.success) {
+                      setShowUpdates(false)
+                    } else if (window.electronAPI?.updater) {
+                      setUpdateStatus(prev => ({ ...prev, status: 'error', message: result?.error || 'Failed to start download.' }))
+                    } else if (updateStatus.downloadUrl) {
+                      window.open(updateStatus.downloadUrl, '_blank', 'noopener,noreferrer')
+                    }
+                  }}
+                  className="block w-full text-center px-4 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium text-sm"
+                >
+                  Download Update
+                </button>
               </div>
             )}
             {updateStatus?.status === 'error' && (
@@ -432,9 +461,21 @@ export default function App() {
     classes: <ClassesPage navigate={navigate} searchQuery={searchQuery} />,
     subjects: <SubjectsPage navigate={navigate} searchQuery={searchQuery} />,
     departments: <DepartmentsPage navigate={navigate} searchQuery={searchQuery} />,
+    rooms: <ManageRooms navigate={navigate} searchQuery={searchQuery} />,
+    pupils: <Pupils navigate={navigate} searchQuery={searchQuery} />,
     editor: <TimetableEditor navigate={navigate} searchQuery={searchQuery} />,
     generate: <GeneratePage navigate={navigate} searchQuery={searchQuery} />,
     view: <ViewPage navigate={navigate} searchQuery={searchQuery} />,
+    print: <PrintPreview navigate={navigate} />,
+    constraints: <TeacherConstraints navigate={navigate} />,
+    relationships: <CardRelationships navigate={navigate} />,
+    verify: <TimetableVerification navigate={navigate} />,
+    statistics: <Statistics navigate={navigate} />,
+    substitutions: <Substitutions navigate={navigate} />,
+    backup: <BackupRestore />,
+    lessonGroups: <LessonGroups navigate={navigate} />,
+    subjectAssignments: <SubjectAssignments navigate={navigate} />,
+    compare: <CompareTimetables navigate={navigate} />,
     settings: <Settings searchQuery={searchQuery} />,
   }
 
@@ -482,13 +523,21 @@ export default function App() {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search teachers, classes, subjects, rooms..."
-              className="w-full pl-9 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
+              className="w-full pl-9 pr-16 py-1.5 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
             />
-            {searchQuery && (
+            {searchQuery ? (
               <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowCommandPalette(true)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-medium text-slate-400 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded border border-slate-200 transition-colors"
+                title="Open Command Palette (Ctrl+K)"
+              >
+                Ctrl K
               </button>
             )}
           </div>
@@ -530,6 +579,7 @@ export default function App() {
         </div>
       </div>
       <WhatsNew open={showWhatsNew} onClose={dismissWhatsNew} installInfo={installInfo} />
+      <CommandPalette open={showCommandPalette} onClose={() => setShowCommandPalette(false)} navigate={navigate} />
       <UndoToast />
       <SuccessToast />
 
@@ -650,14 +700,21 @@ export default function App() {
                   <p className="text-xs text-slate-500 whitespace-pre-wrap">{updateStatus.releaseNotes}</p>
                 </div>
               )}
-              <a
-                href={updateStatus.downloadUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                onClick={async () => {
+                  const result = await window.electronAPI?.updater?.downloadUpdate()
+                  if (result?.success) {
+                    setShowUpdates(false)
+                  } else if (window.electronAPI?.updater) {
+                    setUpdateStatus(prev => ({ ...prev, status: 'error', message: result?.error || 'Failed to start download.' }))
+                  } else if (updateStatus.downloadUrl) {
+                    window.open(updateStatus.downloadUrl, '_blank', 'noopener,noreferrer')
+                  }
+                }}
                 className="block w-full text-center px-4 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium text-sm"
               >
                 Download Update
-              </a>
+              </button>
             </div>
           )}
           {updateStatus?.status === 'error' && (
@@ -687,7 +744,7 @@ export default function App() {
       <Modal open={storageLimitModal} onClose={() => setStorageLimitModal(false)} title="Storage Limit Exceeded">
         <div className="p-6">
           <p className="text-sm text-slate-600 mb-4">
-            You have exceeded the 15 MB storage limit. To continue using Shikola Timetable, please choose one of the following options:
+            You have exceeded the 50 MB storage limit. To continue using Shikola Timetable, please choose one of the following options:
           </p>
           <div className="space-y-3">
             <a
