@@ -3,12 +3,12 @@ import { useApp, getScheduleForClass } from '../store/AppContext.jsx'
 import { Card, PageHeader, Button, SkeletonCard, ProgressBar, Badge } from '../components/UI.jsx'
 import { sounds } from '../utils/sounds.js'
 
-export default function Dashboard({ navigate }) {
+export default function Dashboard({ navigate, searchQuery }) {
   const { state } = useApp()
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 500)
+    const timer = setTimeout(() => setLoading(false), 2000)
     return () => clearTimeout(timer)
   }, [])
 
@@ -17,7 +17,7 @@ export default function Dashboard({ navigate }) {
     { label: 'Classes', count: state.classes.length, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', page: 'classes' },
     { label: 'Subjects', count: state.subjects.length, icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253', page: 'subjects' },
     { label: 'Rooms', count: state.rooms.length, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5', page: 'rooms' },
-    { label: 'Sections', count: state.sections.length, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1', page: 'settings' },
+    { label: 'Pupils', count: state.pupils.length, icon: 'M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222', page: 'pupils' },
   ]
 
   const teachingPeriods = state.settings.periods.filter(p => !p.isBreak)
@@ -46,18 +46,24 @@ export default function Dashboard({ navigate }) {
 
   const quickActions = [
     { label: 'Manage Teachers', desc: 'Add or edit teaching staff', page: 'teachers' },
-    { label: 'Manage Classes', desc: 'Add or edit classes', page: 'classes' },
+    { label: 'Teacher Constraints', desc: 'Set availability and scheduling limits', page: 'constraints' },
     { label: 'Smart Generate', desc: 'Auto-generate timetables with smart scheduling', page: 'generate' },
     { label: 'Edit Timetable', desc: 'Create or modify timetables', page: 'editor' },
     { label: 'View & Export', desc: 'View and export timetables', page: 'view' },
+    { label: 'Print Preview', desc: 'Preview and print timetables', page: 'print' },
+    { label: 'Verify Timetable', desc: 'Check for conflicts and issues', page: 'verify' },
+    { label: 'Statistics', desc: 'View detailed timetable statistics', page: 'statistics' },
+    { label: 'Card Relationships', desc: 'Define subject scheduling rules', page: 'relationships' },
+    { label: 'Substitutions', desc: 'Manage teacher absences', page: 'substitutions' },
+    { label: 'Backup & Restore', desc: 'Save and restore data snapshots', page: 'backup' },
     { label: 'Settings', desc: 'Manage sections, periods, and school settings', page: 'settings' },
   ]
 
   if (loading) {
     return (
-      <div className="p-8">
-        <PageHeader title="Dashboard" subtitle="Welcome to Shikola Timetable Creator" />
-        <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="p-4 md:p-8">
+        <PageHeader title="Home" subtitle="Welcome to Shikola Timetable Creator" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
         <Card className="p-6 mb-8 animate-pulse">
@@ -69,9 +75,9 @@ export default function Dashboard({ navigate }) {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <PageHeader
-        title="Dashboard"
+        title="Home"
         subtitle={`Welcome to ${state.school?.name || 'Shikola Timetable Creator'}`}
         action={activePeriod && <Badge color="blue">{activePeriod.name}</Badge>}
       />
@@ -92,7 +98,7 @@ export default function Dashboard({ navigate }) {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         {stats.map(stat => (
           <Card key={stat.label} className="p-5 cursor-pointer hover:shadow-md transition-shadow" >
             <div onClick={() => { sounds.click(); navigate(stat.page) }}>
@@ -132,7 +138,7 @@ export default function Dashboard({ navigate }) {
 
       {/* Quick Actions */}
       <h3 className="text-sm font-bold text-slate-700 mb-3">Quick Actions</h3>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {quickActions.map(action => (
           <Card key={action.label} className="p-5 cursor-pointer hover:shadow-md transition-shadow">
             <div onClick={() => { sounds.click(); navigate(action.page) }} className="flex items-center justify-between">

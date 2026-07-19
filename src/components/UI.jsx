@@ -85,12 +85,12 @@ export function Modal({ open, onClose, title, children, maxWidth = 'max-w-lg' })
 
 export function PageHeader({ title, subtitle, action }) {
   return (
-    <div className="flex items-center justify-between mb-6">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">{title}</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-slate-800">{title}</h1>
         {subtitle && <p className="text-sm text-slate-500 mt-1">{subtitle}</p>}
       </div>
-      {action}
+      {action && <div className="flex flex-wrap gap-2">{action}</div>}
     </div>
   )
 }
@@ -117,6 +117,7 @@ export function Badge({ children, color = 'blue' }) {
     red: 'bg-red-100 text-red-700',
     amber: 'bg-amber-100 text-amber-700',
     slate: 'bg-slate-100 text-slate-700',
+    teal: 'bg-teal-100 text-teal-700',
   }
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colors[color]}`}>
@@ -224,12 +225,12 @@ export function ProgressBar({ value, max = 100, label }) {
 
 export function Tabs({ tabs, active, onChange }) {
   return (
-    <div className="flex gap-1 border-b border-slate-200">
+    <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
       {tabs.map(tab => (
         <button
           key={tab.id}
           onClick={() => onChange(tab.id)}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          className={`px-3 md:px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             active === tab.id
               ? 'border-brand-600 text-brand-700'
               : 'border-transparent text-slate-500 hover:text-slate-700'

@@ -1,6 +1,8 @@
 import React from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { Card, PageHeader, Badge } from '../components/UI.jsx'
+import { ChangelogList } from '../components/WhatsNew.jsx'
+import { APP_VERSION } from '../data/changelog.js'
 
 export default function About() {
   const { state } = useApp()
@@ -15,7 +17,7 @@ export default function About() {
   ]
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <PageHeader title="About" subtitle="Learn more about Shikola Timetable Creator" />
 
       {/* App Identity */}
@@ -30,7 +32,7 @@ export default function About() {
             <h2 className="text-2xl font-bold text-slate-800">Shikola Timetable Creator</h2>
             <p className="text-sm text-slate-500 mt-1">by Sepio Corp</p>
             <div className="flex items-center gap-2 mt-3">
-              <Badge color="blue">Version 1.0.0</Badge>
+              <Badge color="blue">Version {APP_VERSION}</Badge>
               <Badge color="green">Desktop App</Badge>
               <Badge color="slate">Offline</Badge>
             </div>
@@ -46,7 +48,7 @@ export default function About() {
 
       {/* Features */}
       <h3 className="text-sm font-bold text-slate-700 mb-3">Key Features</h3>
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         {features.map(feature => (
           <Card key={feature.title} className="p-5">
             <div className="flex items-start gap-3">
@@ -92,15 +94,7 @@ export default function About() {
         </div>
       </Card>
 
-      {/* Tech Stack */}
-      <Card className="p-6 mb-6">
-        <h3 className="text-sm font-bold text-slate-700 mb-3">Built With</h3>
-        <div className="flex flex-wrap gap-2">
-          {['React 18', 'Electron', 'Vite', 'Tailwind CSS', 'jsPDF', 'PapaParse'].map(tech => (
-            <Badge key={tech} color="slate">{tech}</Badge>
-          ))}
-        </div>
-      </Card>
+    
 
       {/* License & Copyright */}
       <Card className="p-6 mb-6">
@@ -150,6 +144,12 @@ export default function About() {
           <Badge color="slate">Sepio Corp</Badge>
           <Badge color="green">Offline</Badge>
         </div>
+      </Card>
+
+      {/* Changelog */}
+      <Card className="p-6 mb-6">
+        <h3 className="text-sm font-bold text-slate-700 mb-4">Changelog</h3>
+        <ChangelogList />
       </Card>
 
       {/* Footer */}

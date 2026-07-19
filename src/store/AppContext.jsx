@@ -1,52 +1,7 @@
-import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react'
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useState, useRef } from 'react'
+import { openDB, getData, setData, migrateFromLocalStorage, getStorageUsage, defaultData } from '../utils/indexedDB.js'
 
 const STORAGE_KEY = 'shikola-timetable-data'
-
-const defaultData = {
-  school: null,
-  settings: {
-    days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-    periods: [
-      { id: 1, name: 'Period 1', start: '08:00', end: '08:40' },
-      { id: 2, name: 'Period 2', start: '08:40', end: '09:20' },
-      { id: 3, name: 'Period 3', start: '09:20', end: '10:00' },
-      { id: 4, name: 'Break', start: '10:00', end: '10:20', isBreak: true },
-      { id: 5, name: 'Period 4', start: '10:20', end: '11:00' },
-      { id: 6, name: 'Period 5', start: '11:00', end: '11:40' },
-      { id: 7, name: 'Lunch', start: '11:40', end: '12:20', isBreak: true },
-      { id: 8, name: 'Period 6', start: '12:20', end: '13:00' },
-      { id: 9, name: 'Period 7', start: '13:00', end: '13:40' },
-      { id: 10, name: 'Period 8', start: '13:40', end: '14:20' },
-    ],
-  },
-  appearance: {
-    primaryColor: '#2563eb',
-    accentColor: '#3b82f6',
-    showSchoolHeader: true,
-    showTeacherInCell: true,
-    showRoomInCell: true,
-    cellFontSize: 'auto',
-    tableTheme: 'striped',
-    soundEnabled: true,
-  },
-  academicPeriods: [],
-  activePeriodId: null,
-  sections: [],
-  teachers: [],
-  classes: [],
-  subjects: [],
-  rooms: [],
-  timetable: [],
-  lastDeleted: null,
-  storageWarning: null,
-  telemetry: {
-    registered: true,
-    analyticsEnabled: true,
-    crashReportingEnabled: true,
-    registrationConsent: true,
-    consentTimestamp: null,
-  },
-}
 
 export function getScheduleForClass(state, classId) {
   const cls = state.classes.find(c => c.id === classId)
@@ -65,17 +20,53 @@ export const PERIOD_TYPES = {
   year: { label: 'Full Year', weeks: 40, description: '~40 weeks (full academic year)' },
 }
 
-function loadData() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      return { ...defaultData, ...parsed }
+function deepMergeDefaults(defaults, saved) {
+  const result = { ...defaults }
+  for (const key in saved) {
+    if (
+      saved[key] !== null &&
+      typeof saved[key] === 'object' &&
+      !Array.isArray(saved[key]) &&
+      typeof defaults[key] === 'object' &&
+      !Array.isArray(defaults[key])
+    ) {
+      result[key] = deepMergeDefaults(defaults[key], saved[key])
+    } else {
+      result[key] = saved[key]
     }
-  } catch (e) {
-    console.error('Failed to load data:', e)
   }
-  return defaultData
+  return result
+}
+
+async function loadData() {
+  try {
+    // Try IndexedDB first
+    await openDB()
+    const data = await getData()
+    
+    // If IndexedDB is empty, try migrating from localStorage
+    if (data.teachers.length === 0 && data.classes.length === 0) {
+      const migrated = await migrateFromLocalStorage()
+      if (migrated) {
+        return await getData()
+      }
+    }
+    
+    return data
+  } catch (e) {
+    console.error('Failed to load data from IndexedDB:', e)
+    // Fallback to localStorage
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        return deepMergeDefaults(defaultData, parsed)
+      }
+    } catch (fallbackError) {
+      console.error('Failed to load from localStorage fallback:', fallbackError)
+    }
+    return defaultData
+  }
 }
 
 function genId() {
@@ -87,8 +78,18 @@ function reducer(state, action) {
     case 'SET_SCHOOL':
       return { ...state, school: action.payload }
 
-    case 'UPDATE_SETTINGS':
-      return { ...state, settings: { ...state.settings, ...action.payload } }
+    case 'UPDATE_SETTINGS': {
+      const newSettings = { ...state.settings, ...action.payload }
+      if (action.payload.periods) {
+        const validPeriodIds = new Set(action.payload.periods.map(p => p.id))
+        return {
+          ...state,
+          settings: newSettings,
+          timetable: state.timetable.filter(e => validPeriodIds.has(e.periodId)),
+        }
+      }
+      return { ...state, settings: newSettings }
+    }
 
     case 'ADD_TEACHER':
       return { ...state, teachers: [...state.teachers, { ...action.payload, id: genId() }] }
@@ -142,6 +143,9 @@ function reducer(state, action) {
     case 'BULK_ADD_SUBJECTS':
       return { ...state, subjects: [...state.subjects, ...action.payload.map(s => ({ ...s, id: genId() }))] }
 
+    case 'BULK_ADD_PUPILS':
+      return { ...state, pupils: [...state.pupils, ...action.payload.map(p => ({ ...p, id: genId() }))] }
+
     case 'UPDATE_SUBJECT':
       return {
         ...state,
@@ -175,7 +179,7 @@ function reducer(state, action) {
     }
 
     case 'SET_TIMETABLE_ENTRY': {
-      const { day, periodId, teacherId, classId, subjectId, roomId, secondaryClassId, secondarySubjectId, secondaryTeacherId } = action.payload
+      const { day, periodId, teacherId, classId, subjectId, roomId, secondaryClassId, secondarySubjectId, secondaryTeacherId, lessonLength, lessonGroupId, locked } = action.payload
       const existing = state.timetable.find(
         e => e.day === day && e.periodId === periodId && e.classId === classId
       )
@@ -184,14 +188,14 @@ function reducer(state, action) {
           ...state,
           timetable: state.timetable.map(e =>
             e.id === existing.id
-              ? { ...e, teacherId, subjectId, roomId, secondaryClassId: secondaryClassId || '', secondarySubjectId: secondarySubjectId || '', secondaryTeacherId: secondaryTeacherId || '' }
+              ? { ...e, teacherId, subjectId, roomId, secondaryClassId: secondaryClassId || '', secondarySubjectId: secondarySubjectId || '', secondaryTeacherId: secondaryTeacherId || '', lessonLength: lessonLength || 1, lessonGroupId: lessonGroupId || '', locked: locked || false }
               : e
           ),
         }
       }
       return {
         ...state,
-        timetable: [...state.timetable, { id: genId(), day, periodId, teacherId, classId, subjectId, roomId, secondaryClassId: secondaryClassId || '', secondarySubjectId: secondarySubjectId || '', secondaryTeacherId: secondaryTeacherId || '' }],
+        timetable: [...state.timetable, { id: genId(), day, periodId, teacherId, classId, subjectId, roomId, secondaryClassId: secondaryClassId || '', secondarySubjectId: secondarySubjectId || '', secondaryTeacherId: secondaryTeacherId || '', lessonLength: lessonLength || 1, lessonGroupId: lessonGroupId || '', locked: locked || false }],
       }
     }
 
@@ -209,14 +213,15 @@ function reducer(state, action) {
     case 'GENERATE_TIMETABLE': {
       const { entries, classIds } = action.payload
       const otherEntries = state.timetable.filter(e => !classIds.includes(e.classId))
-      return { ...state, timetable: [...otherEntries, ...entries] }
+      const lockedEntries = state.timetable.filter(e => classIds.includes(e.classId) && state.lockedEntries?.includes(e.id))
+      return { ...state, timetable: [...otherEntries, ...lockedEntries, ...entries] }
     }
 
     case 'RESET_ALL':
       return { ...defaultData, lastDeleted: { type: 'all', data: state, timetableEntries: [] } }
 
     case 'IMPORT_DATA':
-      return { ...defaultData, ...action.payload }
+      return deepMergeDefaults(defaultData, action.payload)
 
     case 'SET_APPEARANCE':
       return { ...state, appearance: { ...state.appearance, ...action.payload } }
@@ -243,11 +248,23 @@ function reducer(state, action) {
     case 'ADD_SECTION':
       return { ...state, sections: [...state.sections, { ...action.payload, id: genId() }] }
 
-    case 'UPDATE_SECTION':
-      return {
-        ...state,
-        sections: state.sections.map(s => s.id === action.payload.id ? { ...s, ...action.payload } : s),
+    case 'UPDATE_SECTION': {
+      const updatedSections = state.sections.map(s => s.id === action.payload.id ? { ...s, ...action.payload } : s)
+      if (action.payload.periods) {
+        const validPeriodIds = new Set(action.payload.periods.map(p => p.id))
+        const sectionClassIds = new Set(
+          state.classes.filter(c => c.sectionId === action.payload.id).map(c => c.id)
+        )
+        return {
+          ...state,
+          sections: updatedSections,
+          timetable: state.timetable.filter(e =>
+            !sectionClassIds.has(e.classId) || validPeriodIds.has(e.periodId)
+          ),
+        }
       }
+      return { ...state, sections: updatedSections }
+    }
 
     case 'DELETE_SECTION':
       return {
@@ -315,8 +332,20 @@ function reducer(state, action) {
     case 'CLEAR_UNDO':
       return { ...state, lastDeleted: null }
 
+    case 'SET_SUCCESS_MESSAGE':
+      return { ...state, successMessage: action.payload }
+
+    case 'CLEAR_SUCCESS_MESSAGE':
+      return { ...state, successMessage: null }
+
     case 'SET_STORAGE_WARNING':
       return { ...state, storageWarning: action.payload }
+
+    case 'SET_APP_LOCKED':
+      return { ...state, appLocked: true, lockReason: action.payload }
+
+    case 'SET_APP_UNLOCKED':
+      return { ...state, appLocked: false, lockReason: null }
 
     case 'SET_TELEMETRY':
       return { ...state, telemetry: { ...state.telemetry, ...action.payload } }
@@ -331,6 +360,206 @@ function reducer(state, action) {
         },
       }
 
+    // === Phase 1: Core Scheduling ===
+    case 'SET_TEACHER_TIME_OFF':
+      return { ...state, teacherTimeOff: { ...state.teacherTimeOff, ...action.payload } }
+
+    case 'SET_TEACHER_CONSTRAINTS':
+      return { ...state, teacherConstraints: { ...state.teacherConstraints, ...action.payload } }
+
+    case 'SET_LESSON_TYPES':
+      return { ...state, lessonTypes: action.payload }
+
+    // === Phase 2: Class & Lesson Management ===
+    case 'ADD_LESSON_DIVISION':
+      return { ...state, lessonDivisions: [...state.lessonDivisions, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_LESSON_DIVISION':
+      return {
+        ...state,
+        lessonDivisions: state.lessonDivisions.map(d => d.id === action.payload.id ? { ...d, ...action.payload } : d),
+      }
+
+    case 'DELETE_LESSON_DIVISION':
+      return { ...state, lessonDivisions: state.lessonDivisions.filter(d => d.id !== action.payload) }
+
+    case 'ADD_LESSON_GROUP':
+      return { ...state, lessonGroups: [...state.lessonGroups, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_LESSON_GROUP':
+      return {
+        ...state,
+        lessonGroups: state.lessonGroups.map(g => g.id === action.payload.id ? { ...g, ...action.payload } : g),
+      }
+
+    case 'DELETE_LESSON_GROUP':
+      return { ...state, lessonGroups: state.lessonGroups.filter(g => g.id !== action.payload) }
+
+    case 'ADD_JOINT_CLASS':
+      return { ...state, jointClasses: [...state.jointClasses, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_JOINT_CLASS':
+      return {
+        ...state,
+        jointClasses: state.jointClasses.map(j => j.id === action.payload.id ? { ...j, ...action.payload } : j),
+      }
+
+    case 'DELETE_JOINT_CLASS':
+      return { ...state, jointClasses: state.jointClasses.filter(j => j.id !== action.payload) }
+
+    case 'SET_MULTI_WEEK_CYCLE':
+      return { ...state, multiWeekCycle: action.payload }
+
+    // === Phase 4: Substitutions & Supervision ===
+    case 'ADD_SUPERVISION':
+      return { ...state, supervision: [...state.supervision, { ...action.payload, id: genId() }] }
+
+    case 'DELETE_SUPERVISION':
+      return { ...state, supervision: state.supervision.filter(s => s.id !== action.payload) }
+
+    // === Phase 5: Export & Print ===
+    case 'ADD_CUSTOM_FIELD':
+      return { ...state, customFields: [...state.customFields, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_CUSTOM_FIELD':
+      return {
+        ...state,
+        customFields: state.customFields.map(f => f.id === action.payload.id ? { ...f, ...action.payload } : f),
+      }
+
+    case 'DELETE_CUSTOM_FIELD':
+      return { ...state, customFields: state.customFields.filter(f => f.id !== action.payload) }
+
+    // === Phase 6: Advanced ===
+    case 'SET_LUNCH_CONSTRAINT':
+      return { ...state, lunchConstraint: { ...state.lunchConstraint, ...action.payload } }
+
+    case 'ADD_EDUCATION_BLOCK':
+      return { ...state, educationBlocks: [...state.educationBlocks, { ...action.payload, id: genId() }] }
+
+    case 'DELETE_EDUCATION_BLOCK':
+      return { ...state, educationBlocks: state.educationBlocks.filter(b => b.id !== action.payload) }
+
+    case 'ADD_BUILDING':
+      return { ...state, buildings: [...state.buildings, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_BUILDING':
+      return {
+        ...state,
+        buildings: state.buildings.map(b => b.id === action.payload.id ? { ...b, ...action.payload } : b),
+      }
+
+    case 'DELETE_BUILDING':
+      return { ...state, buildings: state.buildings.filter(b => b.id !== action.payload) }
+
+    case 'ADD_PUPIL':
+      return { ...state, pupils: [...state.pupils, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_PUPIL':
+      return {
+        ...state,
+        pupils: state.pupils.map(s => s.id === action.payload.id ? { ...s, ...action.payload } : s),
+      }
+
+    case 'DELETE_PUPIL':
+      return { ...state, pupils: state.pupils.filter(s => s.id !== action.payload) }
+
+    case 'SET_AUTO_RELAX':
+      return { ...state, autoRelax: action.payload }
+
+    case 'SET_LANGUAGE':
+      return { ...state, language: action.payload }
+
+    case 'BACKUP_DATA': {
+      const backup = { data: state, timestamp: new Date().toISOString(), id: genId() }
+      return { ...state, backupHistory: [backup, ...state.backupHistory].slice(0, 10) }
+    }
+
+    case 'RESTORE_BACKUP':
+      return { ...action.payload.data, lastDeleted: null }
+
+    case 'DELETE_BACKUP':
+      return { ...state, backupHistory: state.backupHistory.filter(b => b.id !== action.payload) }
+
+    // === Departments ===
+    case 'ADD_DEPARTMENT':
+      return { ...state, departments: [...state.departments, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_DEPARTMENT':
+      return {
+        ...state,
+        departments: state.departments.map(d => d.id === action.payload.id ? { ...d, ...action.payload } : d),
+      }
+
+    case 'DELETE_DEPARTMENT':
+      return {
+        ...state,
+        departments: state.departments.filter(d => d.id !== action.payload),
+        teachers: state.teachers.map(t => t.departmentId === action.payload ? { ...t, departmentId: '' } : t),
+        subjects: state.subjects.map(s => s.departmentId === action.payload ? { ...s, departmentId: '' } : s),
+      }
+
+    case 'BULK_ADD_DEPARTMENTS':
+      return { ...state, departments: [...state.departments, ...action.payload.map(d => ({ ...d, id: genId() }))] }
+
+    case 'BULK_ASSIGN_TEACHERS_DEPT': {
+      const updates = new Map(action.payload.map(u => [u.id, u.departmentId]))
+      return {
+        ...state,
+        teachers: state.teachers.map(t => updates.has(t.id) ? { ...t, departmentId: updates.get(t.id) } : t),
+      }
+    }
+
+    case 'BULK_ASSIGN_SUBJECTS_DEPT': {
+      const updates = new Map(action.payload.map(u => [u.id, u.departmentId]))
+      return {
+        ...state,
+        subjects: state.subjects.map(s => updates.has(s.id) ? { ...s, departmentId: updates.get(s.id) } : s),
+      }
+    }
+
+    // === Subject Assignments ===
+    case 'ADD_SUBJECT_ASSIGNMENT':
+      return { ...state, subjectAssignments: [...state.subjectAssignments, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_SUBJECT_ASSIGNMENT':
+      return {
+        ...state,
+        subjectAssignments: state.subjectAssignments.map(a => a.id === action.payload.id ? { ...a, ...action.payload } : a),
+      }
+
+    case 'DELETE_SUBJECT_ASSIGNMENT':
+      return { ...state, subjectAssignments: state.subjectAssignments.filter(a => a.id !== action.payload) }
+
+    case 'BULK_SET_SUBJECT_ASSIGNMENTS':
+      return { ...state, subjectAssignments: action.payload }
+
+    // === Shared Rooms ===
+    case 'ADD_SHARED_ROOM':
+      return { ...state, sharedRooms: [...state.sharedRooms, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_SHARED_ROOM':
+      return {
+        ...state,
+        sharedRooms: state.sharedRooms.map(r => r.id === action.payload.id ? { ...r, ...action.payload } : r),
+      }
+
+    case 'DELETE_SHARED_ROOM':
+      return { ...state, sharedRooms: state.sharedRooms.filter(r => r.id !== action.payload) }
+
+    // === Shared Classes ===
+    case 'ADD_SHARED_CLASS':
+      return { ...state, sharedClasses: [...state.sharedClasses, { ...action.payload, id: genId() }] }
+
+    case 'UPDATE_SHARED_CLASS':
+      return {
+        ...state,
+        sharedClasses: state.sharedClasses.map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c),
+      }
+
+    case 'DELETE_SHARED_CLASS':
+      return { ...state, sharedClasses: state.sharedClasses.filter(c => c.id !== action.payload) }
+
     default:
       return state
   }
@@ -339,22 +568,156 @@ function reducer(state, action) {
 const AppContext = createContext(null)
 
 export function AppProvider({ children }) {
-  const [state, dispatch] = useReducer(reducer, undefined, loadData)
+  const [state, setState] = useState(defaultData)
+  const [loading, setLoading] = useState(true)
+  const dispatchRef = useRef(null)
+  const storageWarningDismissedRef = useRef(false)
 
+  // Initialize dispatch ref
+  dispatchRef.current = useCallback((action) => {
+    setState(prevState => reducer(prevState, action))
+  }, [])
+
+  // Load data on mount
   useEffect(() => {
-    try {
-      const serialized = JSON.stringify(state)
-      localStorage.setItem(STORAGE_KEY, serialized)
-      if (state.storageWarning) {
-        dispatch({ type: 'SET_STORAGE_WARNING', payload: null })
-      }
-    } catch (e) {
-      console.error('Failed to save data:', e)
-      if (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014) {
-        dispatch({ type: 'SET_STORAGE_WARNING', payload: 'Storage limit reached! The school logo or data may be too large. Consider removing the logo or exporting a backup.' })
+    async function initialize() {
+      try {
+        const data = await loadData()
+        setState(data)
+        setLoading(false)
+
+        // Check app limits on load
+        checkAppLimits(data)
+
+        // Send storage usage analytics on load
+        if (window.electronAPI?.telemetry?.trackEvent) {
+          const dataSize = new Blob([JSON.stringify(data)]).size
+          const sizeMB = dataSize / (1024 * 1024)
+          window.electronAPI.telemetry.trackEvent('storage_usage_report', {
+            storageSizeMB: sizeMB.toFixed(2),
+            schoolName: data.school?.name || 'Unknown',
+            schoolEmail: data.school?.email || 'Unknown',
+            teacherCount: data.teachers.length,
+            classCount: data.classes.length,
+            subjectCount: data.subjects.length,
+            roomCount: data.rooms.length,
+            timetableEntries: data.timetable.length,
+            pupilCount: data.pupils.length,
+          }).catch(() => {})
+        }
+      } catch (e) {
+        console.error('Failed to initialize data:', e)
+        setState(defaultData)
+        setLoading(false)
       }
     }
-  }, [state])
+    initialize()
+  }, [])
+
+  // Save data to IndexedDB on state changes
+  useEffect(() => {
+    if (loading) return
+
+    async function saveData() {
+      try {
+        // Check storage limit before saving
+        const dataSize = new Blob([JSON.stringify(state)]).size
+        const sizeMB = dataSize / (1024 * 1024)
+        if (sizeMB > 50) {
+          if (!storageWarningDismissedRef.current && !state.storageWarning) {
+            dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: 'Storage limit exceeded (50 MB). Please download the Shikola Management System or contact us for assistance.' })
+
+            // Send notification to Sepio Corp about storage limit exceeded
+            if (window.electronAPI?.telemetry?.trackEvent) {
+              window.electronAPI.telemetry.trackEvent('storage_limit_exceeded', {
+                storageSizeMB: sizeMB.toFixed(2),
+                schoolName: state.school?.name || 'Unknown',
+                schoolEmail: state.school?.email || 'Unknown',
+                teacherCount: state.teachers.length,
+                classCount: state.classes.length,
+                subjectCount: state.subjects.length,
+                timetableEntries: state.timetable.length,
+              }).catch(() => {})
+            }
+          }
+          return
+        }
+
+        await setData(state)
+        storageWarningDismissedRef.current = false
+        if (state.storageWarning) {
+          dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: null })
+        }
+      } catch (e) {
+        console.error('Failed to save data to IndexedDB:', e)
+        if (!storageWarningDismissedRef.current && !state.storageWarning) {
+          dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: 'Failed to save data. Please try again.' })
+        }
+      }
+    }
+    saveData()
+  }, [state, loading])
+
+  // Check app limits (entity count + storage size) — locks app if exceeded
+  const ENTITY_LIMIT = 100
+  const STORAGE_LIMIT_MB = 50
+
+  const checkAppLimits = useCallback((data) => {
+    const entityCount =
+      (data.teachers?.length || 0) +
+      (data.classes?.length || 0) +
+      (data.subjects?.length || 0) +
+      (data.rooms?.length || 0)
+
+    const dataSize = new Blob([JSON.stringify(data)]).size
+    const sizeMB = dataSize / (1024 * 1024)
+
+    if (entityCount > ENTITY_LIMIT) {
+      dispatchRef.current({
+        type: 'SET_APP_LOCKED',
+        payload: {
+          type: 'entity_limit',
+          message: `You have exceeded the free tier limit of ${ENTITY_LIMIT} total entities (teachers + classes + subjects + rooms). You currently have ${entityCount} entities.`,
+        },
+      })
+      if (window.electronAPI?.telemetry?.trackEvent) {
+        window.electronAPI.telemetry.trackEvent('app_locked_entity_limit', {
+          entityCount,
+          limit: ENTITY_LIMIT,
+          schoolName: data.school?.name || 'Unknown',
+          schoolEmail: data.school?.email || 'Unknown',
+        }).catch(() => {})
+      }
+      return
+    }
+
+    if (sizeMB > STORAGE_LIMIT_MB) {
+      dispatchRef.current({
+        type: 'SET_APP_LOCKED',
+        payload: {
+          type: 'storage_limit',
+          message: `You have exceeded the free tier storage limit of ${STORAGE_LIMIT_MB} MB. Your data is currently ${sizeMB.toFixed(2)} MB.`,
+        },
+      })
+      if (window.electronAPI?.telemetry?.trackEvent) {
+        window.electronAPI.telemetry.trackEvent('app_locked_storage_limit', {
+          storageSizeMB: sizeMB.toFixed(2),
+          limit: STORAGE_LIMIT_MB,
+          schoolName: data.school?.name || 'Unknown',
+          schoolEmail: data.school?.email || 'Unknown',
+        }).catch(() => {})
+      }
+      return
+    }
+  }, [])
+
+  // Re-check limits whenever entity counts change
+  useEffect(() => {
+    if (loading) return
+    checkAppLimits(state)
+  }, [state.teachers, state.classes, state.subjects, state.rooms, loading, checkAppLimits])
+
+  const dispatch = dispatchRef.current
 
   const checkConflicts = useCallback((entry, existingTimetable = state.timetable) => {
     const conflicts = []
@@ -362,6 +725,21 @@ export function AppProvider({ children }) {
     if (period?.isBreak) {
       conflicts.push({ type: 'break', message: 'Cannot schedule during a break period' })
       return conflicts
+    }
+
+    // Check teacher time off
+    if (entry.teacherId) {
+      const timeOff = state.teacherTimeOff?.[entry.teacherId]
+      if (timeOff) {
+        if (timeOff.daysOff?.includes(entry.day)) {
+          const teacher = state.teachers.find(t => t.id === entry.teacherId)
+          conflicts.push({ type: 'time_off', message: `Teacher ${teacher?.name || 'Unknown'} is unavailable on ${entry.day}` })
+        }
+        if (timeOff.periodsOff?.includes(`${entry.day}-${entry.periodId}`)) {
+          const teacher = state.teachers.find(t => t.id === entry.teacherId)
+          conflicts.push({ type: 'time_off', message: `Teacher ${teacher?.name || 'Unknown'} is unavailable at this period` })
+        }
+      }
     }
 
     for (const e of existingTimetable) {
@@ -415,12 +793,37 @@ export function AppProvider({ children }) {
       }
     }
     return conflicts
-  }, [state.timetable, state.teachers, state.classes, state.rooms, state.settings.periods])
+  }, [state.timetable, state.teachers, state.classes, state.rooms, state.settings.periods, state.teacherTimeOff])
+
+  const entityCount =
+    (state.teachers?.length || 0) +
+    (state.classes?.length || 0) +
+    (state.subjects?.length || 0) +
+    (state.rooms?.length || 0)
+
+  const dismissStorageWarning = useCallback(() => {
+    storageWarningDismissedRef.current = true
+    dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: null })
+  }, [])
 
   const value = {
     state,
     dispatch,
     checkConflicts,
+    loading,
+    entityCount,
+    entityLimit: 100,
+    storageLimitMB: 50,
+    dismissStorageWarning,
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600 mx-auto"></div>
+        <p className="mt-4 text-sm text-slate-600">Loading data...</p>
+      </div>
+    </div>
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

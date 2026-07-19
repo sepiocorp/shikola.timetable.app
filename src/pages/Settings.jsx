@@ -1,21 +1,64 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useApp, PERIOD_TYPES } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
-import { Button, Input, Select, Card, PageHeader, Modal, Toggle, Badge, Tabs } from '../components/UI.jsx'
+import { Button, Input, Select, Card, PageHeader, Modal, Toggle, Badge, Tabs, SkeletonCard } from '../components/UI.jsx'
 import { sendRegistration, trackEvent } from '../utils/telemetry.js'
+import BackupRestore from './BackupRestore.jsx'
+import { ChangelogList } from '../components/WhatsNew.jsx'
+import { APP_VERSION } from '../data/changelog.js'
 
 const ALL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 const COLOR_PRESETS = [
   { name: 'Blue', primary: '#2563eb', accent: '#3b82f6' },
-  { name: 'Indigo', primary: '#4f46e5', accent: '#6366f1' },
+  { name: 'Zambia Green', primary: '#198a00', accent: '#f36614' },
   { name: 'Teal', primary: '#0d9488', accent: '#14b8a6' },
   { name: 'Emerald', primary: '#059669', accent: '#10b981' },
-  { name: 'Violet', primary: '#7c3aed', accent: '#8b5cf6' },
+  { name: 'Zambia Red', primary: '#d41c30', accent: '#2b67ce' },
   { name: 'Rose', primary: '#e11d48', accent: '#f43f5e' },
-  { name: 'Amber', primary: '#d97706', accent: '#f59e0b' },
+  { name: 'Zambia Orange', primary: '#f36614', accent: '#198a00' },
   { name: 'Slate', primary: '#475569', accent: '#64748b' },
 ]
+
+const SUB_TABS = {
+  school: [
+    { id: 'info', label: 'Info' },
+    { id: 'days', label: 'Days' },
+    { id: 'periods', label: 'Periods' },
+    { id: 'sections', label: 'Sections' },
+    { id: 'academic', label: 'Academic' },
+    { id: 'buildings', label: 'Buildings' },
+  ],
+  appearance: [
+    { id: 'colors', label: 'Colors & Display' },
+    { id: 'language', label: 'Language' },
+    { id: 'fields', label: 'Custom Fields' },
+  ],
+  advanced: [
+    { id: 'lunch', label: 'Lunch' },
+    { id: 'cycle', label: 'Multi-Week' },
+    { id: 'blocks', label: 'Blocks' },
+  ],
+  data: [
+    { id: 'backup', label: 'Backup' },
+    { id: 'restore', label: 'Restore' },
+  ],
+  about: [
+    { id: 'about', label: 'About' },
+    { id: 'customization', label: 'Customization' },
+    { id: 'limits', label: 'Limits' },
+    { id: 'privacy', label: 'Privacy' },
+    { id: 'changelog', label: 'Changelog' },
+  ],
+}
+
+const DEFAULT_SUB_TAB = {
+  school: 'info',
+  appearance: 'colors',
+  advanced: 'lunch',
+  data: 'backup',
+  about: 'about',
+}
 
 const ABOUT_FEATURES = [
   { icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', title: 'Timetable Editor', desc: 'Create and edit class timetables with automatic conflict detection' },
@@ -26,25 +69,169 @@ const ABOUT_FEATURES = [
   { icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5', title: 'Academic Periods', desc: 'Organize timetables by week, term, quarter, semester, or full academic year' },
 ]
 
-export default function Settings() {
-  const { state, dispatch } = useApp()
+function BuildingForm({ onAdd }) {
+  const [name, setName] = useState('')
+  const [floors, setFloors] = useState('')
+
+  const handleAdd = () => {
+    if (!name.trim()) return
+    onAdd({ name: name.trim(), floors: floors ? parseInt(floors) : undefined })
+    setName('')
+    setFloors('')
+  }
+
+  return (
+    <div className="flex gap-3 items-end">
+      <div className="flex-1">
+        <label className="block text-sm font-medium text-slate-700 mb-1">Building Name</label>
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          placeholder="e.g., Science Block"
+          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+      </div>
+      <div className="w-24">
+        <label className="block text-sm font-medium text-slate-700 mb-1">Floors</label>
+        <input
+          type="number"
+          min="1"
+          value={floors}
+          onChange={e => setFloors(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          placeholder="1"
+          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+      </div>
+      <Button size="sm" onClick={handleAdd}>Add</Button>
+    </div>
+  )
+}
+
+function EducationBlockForm({ onAdd, state }) {
+  const [subjectId, setSubjectId] = useState('')
+  const [classId, setClassId] = useState('')
+  const [length, setLength] = useState(2)
+  const [days, setDays] = useState([])
+
+  const toggleDay = (day) => {
+    setDays(d => d.includes(day) ? d.filter(x => x !== day) : [...d, day])
+  }
+
+  const handleAdd = () => {
+    if (length < 2) return
+    onAdd({ subjectId, classId, length: parseInt(length), days })
+    setSubjectId(''); setClassId(''); setLength(2); setDays([])
+  }
+
+  return (
+    <div className="border-t border-slate-200 pt-4 space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Subject (optional)</label>
+          <select value={subjectId} onChange={e => setSubjectId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+            <option value="">Any subject</option>
+            {state.subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Class (optional)</label>
+          <select value={classId} onChange={e => setClassId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+            <option value="">All classes</option>
+            {state.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Block Length (periods)</label>
+          <input type="number" min="2" max="6" value={length} onChange={e => setLength(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Days (optional)</label>
+        <div className="flex gap-2 flex-wrap">
+          {state.settings.days.map(day => (
+            <button key={day} onClick={() => toggleDay(day)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${days.includes(day) ? 'bg-brand-100 text-brand-700 border-brand-300' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>{day}</button>
+          ))}
+        </div>
+      </div>
+      <Button size="sm" onClick={handleAdd}>+ Add Block</Button>
+    </div>
+  )
+}
+
+function CustomFieldForm({ onAdd, state }) {
+  const [key, setKey] = useState('')
+  const [label, setLabel] = useState('')
+  const [subjectId, setSubjectId] = useState('')
+  const [classId, setClassId] = useState('')
+
+  const handleAdd = () => {
+    if (!key.trim() || !label.trim()) return
+    onAdd({ key: key.trim(), label: label.trim(), subjectId, classId })
+    setKey(''); setLabel(''); setSubjectId(''); setClassId('')
+  }
+
+  return (
+    <div className="border-t border-slate-200 pt-4 space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Field Key *</label>
+          <input value={key} onChange={e => setKey(e.target.value)} placeholder="e.g., note, abbreviation" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Display Label *</label>
+          <input value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g., Room Note" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Subject (optional)</label>
+          <select value={subjectId} onChange={e => setSubjectId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+            <option value="">All subjects</option>
+            {state.subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Class (optional)</label>
+          <select value={classId} onChange={e => setClassId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+            <option value="">All classes</option>
+            {state.classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      </div>
+      <Button size="sm" onClick={handleAdd}>+ Add Field</Button>
+    </div>
+  )
+}
+
+export default function Settings({ searchQuery }) {
+  const { state, dispatch, entityCount, entityLimit } = useApp()
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 2000)
+    return () => clearTimeout(timer)
+  }, [])
+
   const [schoolForm, setSchoolForm] = useState(state.school || {})
   const [periods, setPeriods] = useState(state.settings.periods)
   const [selectedDays, setSelectedDays] = useState(state.settings.days)
   const [resetModal, setResetModal] = useState(false)
   const [settingsTab, setSettingsTab] = useState('school')
+  const [subTab, setSubTab] = useState('info')
   const [periodModal, setPeriodModal] = useState(false)
   const [editingPeriod, setEditingPeriod] = useState(null)
   const [periodForm, setPeriodForm] = useState({ name: '', type: 'term', startDate: '', endDate: '' })
   const [appearance, setAppearance] = useState(state.appearance || {})
   const [sectionModal, setSectionModal] = useState(false)
   const [editingSection, setEditingSection] = useState(null)
-  const [sectionForm, setSectionForm] = useState({ name: '', days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], periods: [] })
+  const [sectionForm, setSectionForm] = useState({ name: '', session: 'full', days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], periods: [] })
   const [sectionNumPeriods, setSectionNumPeriods] = useState(8)
+  const [storageLimitModal, setStorageLimitModal] = useState(false)
 
   const handleSchoolSave = () => {
     dispatch({ type: 'SET_SCHOOL', payload: schoolForm })
     sounds.save()
+    dispatch({ type: 'SET_SUCCESS_MESSAGE', payload: 'School info saved successfully' })
   }
 
   const handleLogoUpload = (e) => {
@@ -67,9 +254,52 @@ export default function Settings() {
     sounds.click()
   }
 
+  const handleAddPeriod = () => {
+    const teachingCount = periods.filter(p => !p.isBreak).length
+    const lastPeriod = periods[periods.length - 1]
+    let start = '08:00'
+    if (lastPeriod?.end) {
+      const [h, m] = lastPeriod.end.split(':').map(Number)
+      const newM = m + 40
+      const newH = h + Math.floor(newM / 60)
+      start = `${String(newH).padStart(2, '0')}:${String(newM % 60).padStart(2, '0')}`
+    }
+    const [sh, sm] = start.split(':').map(Number)
+    const endM = sm + 40
+    const endH = sh + Math.floor(endM / 60)
+    const end = `${String(endH).padStart(2, '0')}:${String(endM % 60).padStart(2, '0')}`
+    const newId = Date.now()
+    setPeriods([...periods, { id: newId, name: `Period ${teachingCount + 1}`, start, end }])
+    sounds.add()
+  }
+
+  const handleAddBreak = () => {
+    const lastPeriod = periods[periods.length - 1]
+    let start = '10:00'
+    if (lastPeriod?.end) {
+      const [h, m] = lastPeriod.end.split(':').map(Number)
+      const newM = m + 15
+      const newH = h + Math.floor(newM / 60)
+      start = `${String(newH).padStart(2, '0')}:${String(newM % 60).padStart(2, '0')}`
+    }
+    const [sh, sm] = start.split(':').map(Number)
+    const endM = sm + 15
+    const endH = sh + Math.floor(endM / 60)
+    const end = `${String(endH).padStart(2, '0')}:${String(endM % 60).padStart(2, '0')}`
+    const newId = Date.now() + 100
+    setPeriods([...periods, { id: newId, name: 'Break', start, end, isBreak: true }])
+    sounds.add()
+  }
+
+  const handleRemovePeriod = (id) => {
+    setPeriods(periods.filter(p => p.id !== id))
+    sounds.delete()
+  }
+
   const handlePeriodsSave = () => {
     dispatch({ type: 'UPDATE_SETTINGS', payload: { periods } })
     sounds.save()
+    dispatch({ type: 'SET_SUCCESS_MESSAGE', payload: 'Period times saved successfully' })
   }
 
   const handleDayToggle = (day) => {
@@ -85,6 +315,7 @@ export default function Settings() {
     const ordered = ALL_DAYS.filter(d => selectedDays.includes(d))
     dispatch({ type: 'UPDATE_SETTINGS', payload: { days: ordered } })
     sounds.save()
+    dispatch({ type: 'SET_SUCCESS_MESSAGE', payload: 'School days saved successfully' })
   }
 
   const handleReset = () => {
@@ -96,6 +327,7 @@ export default function Settings() {
   const handleAppearanceSave = () => {
     dispatch({ type: 'SET_APPEARANCE', payload: appearance })
     sounds.save()
+    dispatch({ type: 'SET_SUCCESS_MESSAGE', payload: 'Appearance saved successfully' })
   }
 
   const openAddPeriod = () => {
@@ -145,11 +377,23 @@ export default function Settings() {
     }
   }
 
-  const generateSectionPeriods = (num) => {
+  const SESSION_START_TIMES = {
+    morning: '07:00',
+    afternoon: '13:00',
+    full: '08:00',
+  }
+
+  const SESSION_LABELS = {
+    morning: 'Morning',
+    afternoon: 'Afternoon',
+    full: 'Full Day',
+  }
+
+  const generateSectionPeriods = (num, session = 'full') => {
     const periods = []
-    let currentTime = '08:00'
+    let currentTime = SESSION_START_TIMES[session] || '08:00'
     const periodDuration = 40
-    const breakAfter = 4
+    const breakAfter = session === 'full' ? 4 : Math.min(4, Math.floor(num / 2))
     for (let i = 1; i <= num; i++) {
       const [h, m] = currentTime.split(':').map(Number)
       const endM = m + periodDuration
@@ -157,13 +401,13 @@ export default function Settings() {
       const endTime = `${String(endH).padStart(2, '0')}:${String(endM % 60).padStart(2, '0')}`
       periods.push({ id: i, name: `Period ${i}`, start: currentTime, end: endTime })
       currentTime = endTime
-      if (i === breakAfter) {
-        periods.push({ id: i + 100, name: 'Break', start: currentTime, end: (() => {
-          const [bh, bm] = currentTime.split(':').map(Number)
-          return `${String(bh).padStart(2, '0')}:${String(bm + 20).padStart(2, '0')}`
-        })(), isBreak: true })
+      if (i === breakAfter && i < num) {
         const [bh, bm] = currentTime.split(':').map(Number)
-        currentTime = `${String(bh).padStart(2, '0')}:${String(bm + 20).padStart(2, '0')}`
+        const breakEndM = bm + 15
+        const breakEndH = bh + Math.floor(breakEndM / 60)
+        const breakEnd = `${String(breakEndH).padStart(2, '0')}:${String(breakEndM % 60).padStart(2, '0')}`
+        periods.push({ id: i + 100, name: 'Break', start: currentTime, end: breakEnd, isBreak: true })
+        currentTime = breakEnd
       }
     }
     return periods
@@ -173,6 +417,7 @@ export default function Settings() {
     setEditingSection(null)
     setSectionForm({
       name: '',
+      session: 'full',
       days: [...state.settings.days],
       periods: state.settings.periods.map(p => ({ ...p })),
     })
@@ -185,6 +430,7 @@ export default function Settings() {
     setEditingSection(section)
     setSectionForm({
       name: section.name,
+      session: section.session || 'full',
       days: [...(section.days || [])],
       periods: (section.periods || []).map(p => ({ ...p })),
     })
@@ -211,7 +457,12 @@ export default function Settings() {
 
   const handleSectionNumPeriodsChange = (num) => {
     setSectionNumPeriods(num)
-    setSectionForm(f => ({ ...f, periods: generateSectionPeriods(num) }))
+    setSectionForm(f => ({ ...f, periods: generateSectionPeriods(num, f.session) }))
+    sounds.click()
+  }
+
+  const handleSectionSessionChange = (session) => {
+    setSectionForm(f => ({ ...f, session, periods: generateSectionPeriods(sectionNumPeriods, session) }))
     sounds.click()
   }
 
@@ -221,7 +472,7 @@ export default function Settings() {
       return
     }
     const orderedDays = ALL_DAYS.filter(d => sectionForm.days.includes(d))
-    const payload = { name: sectionForm.name, days: orderedDays, periods: sectionForm.periods }
+    const payload = { name: sectionForm.name, session: sectionForm.session || 'full', days: orderedDays, periods: sectionForm.periods }
     if (editingSection) {
       dispatch({ type: 'UPDATE_SECTION', payload: { ...editingSection, ...payload } })
     } else {
@@ -271,8 +522,19 @@ export default function Settings() {
     reader.readAsText(file)
   }
 
+  if (loading) {
+    return (
+      <div className="p-4 md:p-8">
+        <PageHeader title="Settings" subtitle="Loading..." />
+        <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <PageHeader title="Settings" subtitle="Configure school information, appearance, and timetable settings" />
 
       {/* Settings Tabs */}
@@ -280,24 +542,34 @@ export default function Settings() {
         <Tabs
           tabs={[
             { id: 'school', label: 'School' },
-            { id: 'sections', label: 'Sections' },
-            { id: 'periods', label: 'Academic Periods' },
             { id: 'appearance', label: 'Appearance' },
+            { id: 'advanced', label: 'Advanced' },
             { id: 'data', label: 'Data' },
-            { id: 'privacy', label: 'Privacy & Telemetry' },
             { id: 'about', label: 'About' },
           ]}
           active={settingsTab}
-          onChange={(id) => { setSettingsTab(id); sounds.click() }}
+          onChange={(id) => { setSettingsTab(id); setSubTab(DEFAULT_SUB_TAB[id] || (SUB_TABS[id] && SUB_TABS[id][0].id)); sounds.click() }}
         />
       </div>
+
+      {/* Sub Tabs */}
+      {SUB_TABS[settingsTab] && (
+        <div className="mb-4">
+          <Tabs
+            tabs={SUB_TABS[settingsTab]}
+            active={subTab}
+            onChange={(id) => { setSubTab(id); sounds.click() }}
+          />
+        </div>
+      )}
 
       {/* School Info Tab */}
       {settingsTab === 'school' && (
         <>
+          {subTab === 'info' && (
           <Card className="p-6 mb-6">
             <h3 className="text-sm font-bold text-slate-700 mb-4">School Information</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="School Name" value={schoolForm.name || ''} onChange={e => setSchoolForm({ ...schoolForm, name: e.target.value })} className="col-span-2" />
 
               {/* Logo Upload */}
@@ -349,10 +621,12 @@ export default function Settings() {
               <Button onClick={handleSchoolSave}>Save School Info</Button>
             </div>
           </Card>
+          )}
 
+          {subTab === 'days' && (
           <Card className="p-6 mb-6">
             <h3 className="text-sm font-bold text-slate-700 mb-4">School Days</h3>
-            <div className="grid grid-cols-4 gap-3 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
               {ALL_DAYS.map(day => (
                 <button
                   key={day}
@@ -369,13 +643,25 @@ export default function Settings() {
             </div>
             <Button onClick={handleDaysSave}>Save Days</Button>
           </Card>
+          )}
 
+          {subTab === 'periods' && (
           <Card className="p-6 mb-6">
-            <h3 className="text-sm font-bold text-slate-700 mb-4">Period Times</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-slate-700">Period Times</h3>
+              <div className="flex gap-2">
+                <Button size="sm" variant="secondary" onClick={handleAddBreak}>+ Break</Button>
+                <Button size="sm" onClick={handleAddPeriod}>+ Period</Button>
+              </div>
+            </div>
             <div className="space-y-2">
               {periods.map(period => (
                 <div key={period.id} className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-slate-700 w-24">{period.name}</span>
+                  <Input
+                    value={period.name}
+                    onChange={e => handlePeriodUpdate(period.id, 'name', e.target.value)}
+                    className="w-28"
+                  />
                   {period.isBreak ? (
                     <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded">Break</span>
                   ) : (
@@ -384,32 +670,45 @@ export default function Settings() {
                   <Input type="time" value={period.start} onChange={e => handlePeriodUpdate(period.id, 'start', e.target.value)} className="w-32" />
                   <span className="text-slate-400">to</span>
                   <Input type="time" value={period.end} onChange={e => handlePeriodUpdate(period.id, 'end', e.target.value)} className="w-32" />
+                  <button
+                    onClick={() => handleRemovePeriod(period.id)}
+                    className="text-slate-400 hover:text-red-500 transition-colors"
+                    title="Remove period"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
                 </div>
               ))}
+              {periods.length === 0 && (
+                <p className="text-sm text-slate-400 text-center py-4">No periods configured. Add one to get started.</p>
+              )}
             </div>
             <div className="mt-4">
               <Button onClick={handlePeriodsSave}>Save Period Times</Button>
             </div>
           </Card>
+          )}
         </>
       )}
 
-      {/* Sections Tab */}
-      {settingsTab === 'sections' && (
+      {settingsTab === 'school' && subTab === 'sections' && (
         <Card className="p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-slate-700">School Sections</h3>
             <Button size="sm" onClick={openAddSection}>+ Add Section</Button>
           </div>
           <p className="text-xs text-slate-500 mb-4">
-            Create sections (e.g., Primary, Secondary) with their own days and period schedules.
-            Assign classes to sections in the Classes page. Classes without a section use the default schedule.
+            Create sections for different school units (e.g., Primary, Secondary) and sessions (Morning, Afternoon).
+            Each section has its own days and period schedule. Assign classes to sections in the Classes page.
+            Classes without a section use the default schedule.
           </p>
 
           {state.sections.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-sm text-slate-400">No sections created yet.</p>
-              <p className="text-xs text-slate-400 mt-1">Add a section if your school has different schedules for different levels (e.g., primary vs secondary).</p>
+              <p className="text-xs text-slate-400 mt-1">Add a section for each unit/session (e.g., Primary Morning, Secondary Afternoon).</p>
               <div className="mt-4">
                 <Button size="sm" onClick={openAddSection}>+ Add Section</Button>
               </div>
@@ -430,6 +729,9 @@ export default function Settings() {
                       <div>
                         <p className="text-sm font-semibold text-slate-800">{section.name}</p>
                         <div className="flex items-center gap-2 mt-0.5">
+                          {section.session && section.session !== 'full' && (
+                            <Badge color={section.session === 'morning' ? 'amber' : 'teal'}>{SESSION_LABELS[section.session] || section.session}</Badge>
+                          )}
                           <Badge color="blue">{classCount} class(es)</Badge>
                           <span className="text-xs text-slate-500">{(section.days || []).length} days, {teachingPeriods.length} periods</span>
                         </div>
@@ -455,8 +757,7 @@ export default function Settings() {
         </Card>
       )}
 
-      {/* Academic Periods Tab */}
-      {settingsTab === 'periods' && (
+      {settingsTab === 'school' && subTab === 'academic' && (
         <Card className="p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-slate-700">Academic Periods</h3>
@@ -524,7 +825,7 @@ export default function Settings() {
       )}
 
       {/* Appearance Tab */}
-      {settingsTab === 'appearance' && (
+      {settingsTab === 'appearance' && subTab === 'colors' && (
         <Card className="p-6 mb-6">
           <h3 className="text-sm font-bold text-slate-700 mb-4">Appearance & Customization</h3>
 
@@ -551,7 +852,7 @@ export default function Settings() {
           </div>
 
           {/* Custom Colors */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Primary Color</label>
               <div className="flex items-center gap-2">
@@ -599,9 +900,214 @@ export default function Settings() {
         </Card>
       )}
 
+      {/* Advanced Tab */}
+      {settingsTab === 'advanced' && (
+        <>
+          {subTab === 'lunch' && (
+          <Card className="p-6 mb-6">
+            <h3 className="text-sm font-bold text-slate-700 mb-4">Lunch Constraint</h3>
+            <p className="text-xs text-slate-500 mb-4">Ensure lunch break is scheduled within a specific period range.</p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-700">Enable lunch constraint</p>
+                  <p className="text-xs text-slate-500">When enabled, generation will try to keep lunch within the specified range</p>
+                </div>
+                <Toggle
+                  checked={state.lunchConstraint?.enabled || false}
+                  onChange={(v) => { dispatch({ type: 'SET_LUNCH_CONSTRAINT', payload: { enabled: v } }); sounds.click() }}
+                />
+              </div>
+              {state.lunchConstraint?.enabled && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Lunch after period</label>
+                    <select
+                      value={state.lunchConstraint.afterPeriodId || ''}
+                      onChange={e => dispatch({ type: 'SET_LUNCH_CONSTRAINT', payload: { afterPeriodId: e.target.value } })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                    >
+                      <option value="">-- Select --</option>
+                      {state.settings.periods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Lunch before period</label>
+                    <select
+                      value={state.lunchConstraint.beforePeriodId || ''}
+                      onChange={e => dispatch({ type: 'SET_LUNCH_CONSTRAINT', payload: { beforePeriodId: e.target.value } })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                    >
+                      <option value="">-- Select --</option>
+                      {state.settings.periods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+          )}
+
+          {subTab === 'cycle' && (
+          <Card className="p-6 mb-6">
+            <h3 className="text-sm font-bold text-slate-700 mb-4">Multi-Week Cycle</h3>
+            <p className="text-xs text-slate-500 mb-4">Set the number of weeks in the scheduling cycle (for rotating timetables).</p>
+            <div className="flex items-center gap-4">
+              <input
+                type="number"
+                min="1"
+                max="4"
+                value={state.multiWeekCycle || 1}
+                onChange={e => dispatch({ type: 'SET_MULTI_WEEK_CYCLE', payload: Math.max(1, Math.min(4, Number(e.target.value) || 1)) })}
+                className="w-24 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+              <span className="text-sm text-slate-500">week(s) per cycle</span>
+            </div>
+          </Card>
+          )}
+        </>
+      )}
+
+      {/* Language - merged into Appearance */}
+      {settingsTab === 'appearance' && subTab === 'language' && (
+        <Card className="p-6 mb-6">
+          <h3 className="text-sm font-bold text-slate-700 mb-4">Language</h3>
+          <p className="text-xs text-slate-500 mb-4">Interface language preference.</p>
+          <div className="flex flex-wrap gap-3">
+            {[
+              { code: 'en', label: 'English' },
+              { code: 'ch', label: 'Chokwe' },
+              { code: 'bem', label: 'Bemba' },
+              { code: 'ny', label: 'Nyanja' },
+              { code: 'loz', label: 'Lozi' },
+              { code: 'toi', label: 'Tonga' },
+              { code: 'kqn', label: 'Kaonde' },
+              { code: 'lue', label: 'Luvale' },
+              { code: 'lun', label: 'Lunda' },
+            ].map(lang => (
+              <button
+                key={lang.code}
+                onClick={() => { dispatch({ type: 'SET_LANGUAGE', payload: lang.code }); sounds.click() }}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                state.language === lang.code
+                  ? 'bg-brand-100 text-brand-700 border border-brand-300'
+                  : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300'
+              }`}
+              >
+                {lang.label}
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Buildings - merged into School */}
+      {settingsTab === 'school' && subTab === 'buildings' && (
+        <Card className="p-6 mb-6">
+          <h3 className="text-sm font-bold text-slate-700 mb-4">Buildings</h3>
+          <p className="text-xs text-slate-500 mb-4">Manage campus buildings for room assignments.</p>
+          <div className="space-y-2 mb-4">
+            {state.buildings.map(b => (
+              <div key={b.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium text-slate-700">{b.name}</p>
+                  {b.floors && <p className="text-xs text-slate-500">{b.floors} floor(s)</p>}
+                </div>
+                <button onClick={() => { dispatch({ type: 'DELETE_BUILDING', payload: b.id }); sounds.delete() }} className="text-slate-400 hover:text-red-500">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+            {state.buildings.length === 0 && <p className="text-sm text-slate-400">No buildings added yet.</p>}
+          </div>
+          <BuildingForm onAdd={(data) => { dispatch({ type: 'ADD_BUILDING', payload: data }); sounds.add() }} />
+        </Card>
+      )}
+
+      {settingsTab === 'advanced' && subTab === 'blocks' && (
+        <Card className="p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-bold text-slate-700">Education Blocks</h3>
+              <p className="text-xs text-slate-500">Define blocks of consecutive periods for specific subjects (e.g., 3-period science lab).</p>
+            </div>
+          </div>
+          {state.educationBlocks.length === 0 ? (
+            <p className="text-sm text-slate-400 py-4 text-center">No education blocks defined yet.</p>
+          ) : (
+            <div className="space-y-2 mb-4">
+              {state.educationBlocks.map(block => (
+                <div key={block.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Badge color="indigo">{block.length} periods</Badge>
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">{block.subjectId ? state.subjects.find(s => s.id === block.subjectId)?.name || 'Unknown' : 'Any subject'}</p>
+                      <p className="text-xs text-slate-500">{block.classId ? state.classes.find(c => c.id === block.classId)?.name || 'Unknown' : 'All classes'} · {block.days?.join(', ') || 'Any day'}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => { dispatch({ type: 'DELETE_EDUCATION_BLOCK', payload: block.id }); sounds.delete() }} className="text-slate-400 hover:text-red-500">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <EducationBlockForm onAdd={(data) => { dispatch({ type: 'ADD_EDUCATION_BLOCK', payload: data }); sounds.add() }} state={state} />
+        </Card>
+      )}
+
+      {settingsTab === 'appearance' && subTab === 'fields' && (
+        <Card className="p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-bold text-slate-700">Custom Fields on Cards</h3>
+              <p className="text-xs text-slate-500">Add custom text that appears on timetable cells (e.g., room notes, teacher initials).</p>
+            </div>
+          </div>
+          {state.customFields.length === 0 ? (
+            <p className="text-sm text-slate-400 py-4 text-center">No custom fields defined yet.</p>
+          ) : (
+            <div className="space-y-2 mb-4">
+              {state.customFields.map(field => (
+                <div key={field.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Badge color="indigo">{field.key}</Badge>
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">{field.label}</p>
+                      <p className="text-xs text-slate-500">{field.subjectId ? `Subject: ${state.subjects.find(s => s.id === field.subjectId)?.name || 'Unknown'}` : 'All subjects'} · {field.classId ? `Class: ${state.classes.find(c => c.id === field.classId)?.name || 'Unknown'}` : 'All classes'}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => {
+                      const newLabel = prompt('Edit label:', field.label)
+                      if (newLabel !== null) { dispatch({ type: 'UPDATE_CUSTOM_FIELD', payload: { ...field, label: newLabel } }); sounds.click() }
+                    }} className="text-slate-400 hover:text-brand-600">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button onClick={() => { dispatch({ type: 'DELETE_CUSTOM_FIELD', payload: field.id }); sounds.delete() }} className="text-slate-400 hover:text-red-500">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <CustomFieldForm onAdd={(data) => { dispatch({ type: 'ADD_CUSTOM_FIELD', payload: data }); sounds.add() }} state={state} />
+        </Card>
+      )}
+
       {/* Data Tab */}
       {settingsTab === 'data' && (
         <>
+          {subTab === 'backup' && (
           <Card className="p-6 mb-6">
             <h3 className="text-sm font-bold text-slate-700 mb-4">Data Management</h3>
             <div className="flex flex-wrap gap-3">
@@ -615,13 +1121,333 @@ export default function Settings() {
               <Button variant="danger" onClick={() => { sounds.click(); setResetModal(true) }}>Reset All Data</Button>
             </div>
           </Card>
+          )}
 
         </>
       )}
 
-      {/* Privacy & Telemetry Tab */}
-      {settingsTab === 'privacy' && (
+      {settingsTab === 'data' && subTab === 'restore' && (
+        <BackupRestore embedded />
+      )}
+
+      {/* About Tab */}
+      {settingsTab === 'about' && (
         <>
+          {subTab === 'about' && (
+            <>
+          <Card className="p-8 mb-6">
+            <div className="flex items-center gap-6">
+              {state.school?.logo ? (
+                <img src={state.school.logo} alt="School logo" className="w-20 h-20 rounded-xl object-contain bg-white border border-slate-200" />
+              ) : (
+                <img src="./logo.png" alt="Shikola logo" className="w-20 h-20 rounded-xl object-contain" />
+              )}
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800">Shikola Timetable Creator</h2>
+                <p className="text-sm text-slate-500 mt-1">by Sepio Corp</p>
+                <div className="flex items-center gap-2 mt-3">
+                  <Badge color="blue">Version {APP_VERSION}</Badge>
+                  <Badge color="green">Desktop App</Badge>
+                  <Badge color="slate">Offline</Badge>
+                </div>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 mt-6 leading-relaxed">
+              Shikola Timetable Creator is a powerful, offline-first desktop application designed to help schools
+              create, manage, and export professional timetables with ease. Built with simplicity and efficiency in mind,
+              it provides automatic conflict detection, smart timetable generation, and flexible export options — all
+              without requiring an internet connection.
+            </p>
+          </Card>
+
+          <h3 className="text-sm font-bold text-slate-700 mb-3">Key Features</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+            {ABOUT_FEATURES.map(feature => (
+              <Card key={feature.title} className="p-5">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-brand-50 flex items-center justify-center flex-shrink-0">
+                    {feature.aiLogo ? (
+                      <img src="./ai.png" alt="AI" className="w-6 h-6 object-contain" />
+                    ) : (
+                      <svg className="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d={feature.icon} />
+                      </svg>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">{feature.title}</p>
+                    <p className="text-xs text-slate-500 mt-1">{feature.desc}</p>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+            </>
+          )}
+
+          {subTab === 'customization' && (
+            <>
+              <Card className="p-6 mb-6">
+                <h3 className="text-sm font-bold text-slate-700 mb-4">Customization Capabilities</h3>
+                <p className="text-sm text-slate-600 mb-6 leading-relaxed">
+                  Shikola Timetable Creator is highly customizable. Here's everything you can tailor to your school's needs:
+                </p>
+
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3">Appearance &amp; Visual</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Color Themes</p><p className="text-xs text-slate-500">8 presets + custom primary/accent color pickers</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Table Themes</p><p className="text-xs text-slate-500">Striped, grid, or plain styles</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Display Toggles</p><p className="text-xs text-slate-500">Show/hide school header, teacher, room in cells</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Sound Effects</p><p className="text-xs text-slate-500">Enable or disable interaction sounds</p></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3">School Branding</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">School Profile</p><p className="text-xs text-slate-500">Name, motto, academic year, term, address, phone, email</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Logo Upload</p><p className="text-xs text-slate-500">PNG, JPG or SVG up to 2MB — shown on exports</p></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3">Schedule Structure</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">School Days</p><p className="text-xs text-slate-500">Toggle any of 7 days on/off</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Period Times</p><p className="text-xs text-slate-500">Full control over names, start/end, breaks</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Sections</p><p className="text-xs text-slate-500">Custom units with own days, periods &amp; sessions</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Academic Periods</p><p className="text-xs text-slate-500">Week, term, quarter, semester, or full year</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Multi-Week Cycle</p><p className="text-xs text-slate-500">1–4 week rotating cycle for scheduling</p></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3">Advanced Scheduling</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Lunch Constraint</p><p className="text-xs text-slate-500">Enforce lunch within a period range</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Education Blocks</p><p className="text-xs text-slate-500">Multi-period blocks for specific subjects/classes</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Buildings</p><p className="text-xs text-slate-500">Campus buildings with floor counts</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Custom Fields on Cards</p><p className="text-xs text-slate-500">Custom text on timetable cells, scoped by subject/class</p></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3">Language &amp; Data</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">9 Languages</p><p className="text-xs text-slate-500">English, Chokwe, Bemba, Nyanja, Lozi, Tonga, Kaonde, Luvale, Lunda</p></div>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-slate-50 rounded-lg">
+                        <span className="text-brand-600 mt-0.5">&#10003;</span>
+                        <div><p className="text-sm font-medium text-slate-700">Backup &amp; Restore</p><p className="text-xs text-slate-500">JSON export/import and reset</p></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </>
+          )}
+
+          {subTab === 'limits' && (
+            <>
+          <Card className="p-6 mb-6">
+            <h3 className="text-sm font-bold text-slate-700 mb-3">Free Tier Limits</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">Total Entities:</span>
+                <span className={`font-medium ${entityCount > entityLimit ? 'text-red-600' : entityCount > entityLimit * 0.8 ? 'text-amber-600' : 'text-slate-800'}`}>
+                  {entityCount} / {entityLimit}
+                  <span className="text-xs text-slate-400 ml-1">(teachers + classes + subjects + rooms)</span>
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all ${entityCount > entityLimit ? 'bg-red-500' : entityCount > entityLimit * 0.8 ? 'bg-amber-500' : 'bg-brand-500'}`}
+                  style={{ width: `${Math.min(100, (entityCount / entityLimit) * 100)}%` }}
+                />
+              </div>
+              {entityCount > entityLimit * 0.8 && entityCount <= entityLimit && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs text-amber-700 font-semibold mb-1">Approaching Entity Limit</p>
+                  <p className="text-xs text-amber-600">
+                    You are nearing the free tier limit of {entityLimit} entities. Consider downloading the Shikola Management System for unlimited access.
+                  </p>
+                </div>
+              )}
+              {entityCount > entityLimit && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-xs text-red-700 font-semibold mb-1">Entity Limit Exceeded</p>
+                  <p className="text-xs text-red-600 mb-2">
+                    You have exceeded the free tier limit of {entityLimit} entities. The app will be locked. Please download the Shikola Management System or contact sales.
+                  </p>
+                  <div className="flex gap-2">
+                    <a href="https://shikola.org" target="_blank" rel="noopener noreferrer" className="text-xs px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 font-medium">Download SMS</a>
+                    <a href="mailto:sales@shikola.org" className="text-xs px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium">Contact Sales</a>
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center justify-between text-sm pt-2 border-t border-slate-100">
+                <span className="text-slate-600">Storage Used:</span>
+                <span className="font-medium text-slate-800">
+                  {(() => {
+                    try {
+                      const data = JSON.stringify(state)
+                      const used = new Blob([data]).size
+                      const usedMB = (used / (1024 * 1024)).toFixed(2)
+                      return `${usedMB} MB`
+                    } catch (e) {
+                      return 'Unknown'
+                    }
+                  })()}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">Storage Type:</span>
+                <span className="font-medium text-slate-800">IndexedDB</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">Estimated Limit:</span>
+                <span className="font-medium text-slate-800">50 MB</span>
+              </div>
+              {(() => {
+                try {
+                  const data = JSON.stringify(state)
+                  const used = new Blob([data]).size
+                  const usedMB = used / (1024 * 1024)
+                  if (usedMB > 50) {
+                    return (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <p className="text-xs text-red-700 font-semibold mb-1">Storage Limit Exceeded</p>
+                        <p className="text-xs text-red-600 mb-2">You have exceeded the 50 MB storage limit.</p>
+                        <Button size="sm" onClick={() => setStorageLimitModal(true)}>View Options</Button>
+                      </div>
+                    )
+                  }
+                  return null
+                } catch (e) {
+                  return null
+                }
+              })()}
+              {state.storageWarning && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs text-amber-700">{state.storageWarning}</p>
+                </div>
+              )}
+              <p className="text-xs text-slate-500">
+                Your data is stored in IndexedDB with a 50 MB limit. If you need more storage, please contact us for assistance.
+              </p>
+            </div>
+          </Card>
+
+          <Card className="p-6 mb-6">
+            <h3 className="text-sm font-bold text-slate-700 mb-4">Upgrading &amp; Solutions</h3>
+            <p className="text-xs text-slate-500 mb-4">
+              The free tier has limits on entities and storage. To remove these restrictions, choose one of the options below:
+            </p>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 p-4 bg-brand-50 rounded-lg border border-brand-200">
+                <svg className="w-5 h-5 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-700">Download Shikola Management System (SMS)</p>
+                  <p className="text-xs text-slate-500 mt-1">The full desktop application with unlimited entities, unlimited storage, and advanced management features.</p>
+                  <a href="https://shikola.org" target="_blank" rel="noopener noreferrer" className="inline-block mt-2 text-xs px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 font-medium">Download SMS</a>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <svg className="w-5 h-5 text-slate-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-700">Contact Sales</p>
+                  <p className="text-xs text-slate-500 mt-1">Reach out to our team for licensing, bulk deployments, or custom solutions for your institution.</p>
+                  <a href="mailto:sales@shikola.org" className="inline-block mt-2 text-xs px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium">Email Sales</a>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <svg className="w-5 h-5 text-slate-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-700">Contact Support</p>
+                  <p className="text-xs text-slate-500 mt-1">Experiencing storage issues or need technical assistance? Our support team can help.</p>
+                  <a href="mailto:support@shikola.org" className="inline-block mt-2 text-xs px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium">Email Support</a>
+                </div>
+              </div>
+            </div>
+          </Card>
+            </>
+          )}
+
+          {subTab === 'privacy' && (
+            <>
+          <Card className="p-6 mb-6">
+            <h3 className="text-sm font-bold text-slate-700 mb-3">Data Privacy</h3>
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="text-sm text-slate-600">
+                <p className="font-semibold text-slate-700 mb-1">Local Storage & Optional Telemetry</p>
+                <p className="text-xs">
+                  All your data — school information, teachers, classes, subjects, rooms, and timetables — is stored
+                  locally on your device. With your consent, the app can also send registration info, anonymous
+                  analytics, and crash reports to Sepio Corp. You can control these options in
+                  Settings &rarr; Privacy & Telemetry.
+                </p>
+              </div>
+            </div>
+          </Card>
+
           <Card className="p-6 mb-6">
             <h3 className="text-sm font-bold text-slate-700 mb-4">Privacy & Telemetry Settings</h3>
             <p className="text-xs text-slate-500 mb-6 leading-relaxed">
@@ -759,91 +1585,22 @@ export default function Settings() {
               </p>
             </div>
           </Card>
-        </>
-      )}
+            </>
+          )}
 
-      {/* About Tab */}
-      {settingsTab === 'about' && (
-        <>
-          <Card className="p-8 mb-6">
-            <div className="flex items-center gap-6">
-              {state.school?.logo ? (
-                <img src={state.school.logo} alt="School logo" className="w-20 h-20 rounded-xl object-contain bg-white border border-slate-200" />
-              ) : (
-                <img src="./logo.png" alt="Shikola logo" className="w-20 h-20 rounded-xl object-contain" />
-              )}
-              <div>
-                <h2 className="text-2xl font-bold text-slate-800">Shikola Timetable Creator</h2>
-                <p className="text-sm text-slate-500 mt-1">by Sepio Corp</p>
-                <div className="flex items-center gap-2 mt-3">
-                  <Badge color="blue">Version 1.0.0</Badge>
-                  <Badge color="green">Desktop App</Badge>
-                  <Badge color="slate">Offline</Badge>
-                </div>
-              </div>
-            </div>
-            <p className="text-sm text-slate-600 mt-6 leading-relaxed">
-              Shikola Timetable Creator is a powerful, offline-first desktop application designed to help schools
-              create, manage, and export professional timetables with ease. Built with simplicity and efficiency in mind,
-              it provides automatic conflict detection, smart timetable generation, and flexible export options — all
-              without requiring an internet connection.
-            </p>
-          </Card>
-
-          <h3 className="text-sm font-bold text-slate-700 mb-3">Key Features</h3>
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            {ABOUT_FEATURES.map(feature => (
-              <Card key={feature.title} className="p-5">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-brand-50 flex items-center justify-center flex-shrink-0">
-                    {feature.aiLogo ? (
-                      <img src="./ai.png" alt="AI" className="w-6 h-6 object-contain" />
-                    ) : (
-                      <svg className="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d={feature.icon} />
-                      </svg>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">{feature.title}</p>
-                    <p className="text-xs text-slate-500 mt-1">{feature.desc}</p>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-
+          {subTab === 'changelog' && (
+            <>
           <Card className="p-6 mb-6">
-            <h3 className="text-sm font-bold text-slate-700 mb-3">Data Privacy</h3>
-            <div className="flex items-start gap-3">
-              <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div className="text-sm text-slate-600">
-                <p className="font-semibold text-slate-700 mb-1">Local Storage & Optional Telemetry</p>
-                <p className="text-xs">
-                  All your data — school information, teachers, classes, subjects, rooms, and timetables — is stored
-                  locally on your device. With your consent, the app can also send registration info, anonymous
-                  analytics, and crash reports to Sepio Corp. You can control these options in
-                  Settings &rarr; Privacy & Telemetry.
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-6 mb-6">
-            <h3 className="text-sm font-bold text-slate-700 mb-3">Built With</h3>
-            <div className="flex flex-wrap gap-2">
-              {['React 18', 'Electron', 'Vite', 'Tailwind CSS', 'jsPDF', 'PapaParse'].map(tech => (
-                <Badge key={tech} color="slate">{tech}</Badge>
-              ))}
-            </div>
+            <h3 className="text-sm font-bold text-slate-700 mb-4">Changelog</h3>
+            <ChangelogList />
           </Card>
 
           <div className="text-center py-6">
-            <p className="text-xs text-slate-400">&copy; {new Date().getFullYear()} Sepio Corp. All rights reserved.</p>
+            <p className="text-xs text-slate-400">&copy; {new Date().getFullYear()} Shikola Timetable Creator powered by Sepio Corp. All rights reserved.</p>
             <p className="text-xs text-slate-300 mt-1">Made with care for educators worldwide.</p>
           </div>
+            </>
+          )}
         </>
       )}
 
@@ -879,7 +1636,7 @@ export default function Settings() {
               ))}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="Start Date" type="date" value={periodForm.startDate} onChange={e => setPeriodForm({ ...periodForm, startDate: e.target.value })} />
             <Input label="End Date" type="date" value={periodForm.endDate} onChange={e => setPeriodForm({ ...periodForm, endDate: e.target.value })} />
           </div>
@@ -896,8 +1653,32 @@ export default function Settings() {
           <Input label="Section Name *" value={sectionForm.name} onChange={e => setSectionForm({ ...sectionForm, name: e.target.value })} placeholder="e.g., Primary, Secondary" />
 
           <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Session Type</label>
+            <div className="grid grid-cols-3 gap-2">
+              {Object.entries(SESSION_LABELS).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => handleSectionSessionChange(key)}
+                  className={`px-3 py-2 rounded-lg text-sm border-2 transition-all ${
+                    sectionForm.session === key
+                      ? 'border-brand-600 bg-brand-50 text-brand-700'
+                      : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              {sectionForm.session === 'morning' && 'Periods start at 07:00 by default.'}
+              {sectionForm.session === 'afternoon' && 'Periods start at 13:00 by default.'}
+              {sectionForm.session === 'full' && 'Periods start at 08:00 by default.'}
+            </p>
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Section Days</label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
               {ALL_DAYS.map(day => (
                 <button
                   key={day}
@@ -952,6 +1733,35 @@ export default function Settings() {
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" onClick={() => setSectionModal(false)}>Cancel</Button>
             <Button onClick={handleSectionSave}>{editingSection ? 'Update' : 'Add'}</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Storage Limit Modal */}
+      <Modal isOpen={storageLimitModal} onClose={() => setStorageLimitModal(false)}>
+        <div className="p-6">
+          <h3 className="text-lg font-bold text-slate-800 mb-2">Storage Limit Exceeded</h3>
+          <p className="text-sm text-slate-600 mb-4">
+            You have exceeded the 50 MB storage limit. To continue using Shikola Timetable, please choose one of the following options:
+          </p>
+          <div className="space-y-3">
+            <a
+              href="https://shikola.org"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full text-center px-4 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium"
+            >
+              Download Shikola Management System
+            </a>
+            <button
+              onClick={() => window.location.href = 'mailto:support@shikola.org?subject=Storage Limit Exceeded - Shikola Timetable'}
+              className="block w-full px-4 py-3 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium"
+            >
+              Contact Us via Email
+            </button>
+          </div>
+          <div className="mt-4 pt-4 border-t border-slate-200">
+            <Button variant="secondary" className="w-full" onClick={() => setStorageLimitModal(false)}>Close</Button>
           </div>
         </div>
       </Modal>

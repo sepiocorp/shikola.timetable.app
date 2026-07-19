@@ -8,7 +8,7 @@ const CONFIG = {
   teachers: {
     title: 'Bulk Import Teachers',
     action: 'BULK_ADD_TEACHERS',
-    columns: ['name', 'code', 'subjects', 'maxPeriods'],
+    columns: ['name', 'subjects', 'classes', 'maxPeriods'],
     required: ['name'],
   },
   classes: {
@@ -22,6 +22,30 @@ const CONFIG = {
     action: 'BULK_ADD_SUBJECTS',
     columns: ['name', 'code', 'color', 'isOptional', 'secondaryClass'],
     required: ['name'],
+  },
+  pupils: {
+    title: 'Bulk Import Pupils',
+    action: 'BULK_ADD_PUPILS',
+    columns: ['name', 'classId', 'email', 'phone', 'subjects'],
+    required: ['name'],
+  },
+  departments: {
+    title: 'Bulk Import Departments',
+    action: 'BULK_ADD_DEPARTMENTS',
+    columns: ['name', 'code', 'headTeacher'],
+    required: ['name'],
+  },
+  deptTeachers: {
+    title: 'Bulk Assign Teachers to Departments',
+    action: 'BULK_ASSIGN_TEACHERS_DEPT',
+    columns: ['teacherName', 'departmentName'],
+    required: ['teacherName', 'departmentName'],
+  },
+  deptSubjects: {
+    title: 'Bulk Assign Subjects to Departments',
+    action: 'BULK_ASSIGN_SUBJECTS_DEPT',
+    columns: ['subjectName', 'departmentName'],
+    required: ['subjectName', 'departmentName'],
   },
 }
 
@@ -65,26 +89,83 @@ export default function BulkImportModal({ open, onClose, type }) {
           }
         }
 
-        if (type === 'teachers') {
-          const subjectNames = (row.subjects || '').split(';').map(s => s.trim()).filter(Boolean)
-          const subjectIds = []
-          const unmatched = []
-          for (const sName of subjectNames) {
-            const subj = state.subjects.find(s => s.name.toLowerCase() === sName.toLowerCase())
-            if (subj) {
-              subjectIds.push(subj.id)
+        if (type === 'departments') {
+          let headTeacherId = ''
+          if (row.headTeacher && String(row.headTeacher).trim()) {
+            const teacher = state.teachers.find(t => t.name.toLowerCase() === String(row.headTeacher).trim().toLowerCase())
+            if (teacher) {
+              headTeacherId = teacher.id
             } else {
-              unmatched.push(sName)
+              rowErrors.push(`Row ${idx + 2}: head teacher not found: "${row.headTeacher}"`)
             }
-          }
-          if (unmatched.length > 0) {
-            rowErrors.push(`Row ${idx + 2}: subjects not found: ${unmatched.join(', ')}`)
           }
           if (rowErrors.length === 0) {
             valid.push({
               name: row.name.trim(),
               code: (row.code || '').trim(),
+              headTeacherId,
+            })
+          }
+        } else if (type === 'deptTeachers') {
+          const teacher = state.teachers.find(t => t.name.toLowerCase() === String(row.teacherName).trim().toLowerCase())
+          if (!teacher) {
+            rowErrors.push(`Row ${idx + 2}: teacher not found: "${row.teacherName}"`)
+          }
+          const dept = state.departments.find(d => d.name.toLowerCase() === String(row.departmentName).trim().toLowerCase())
+          if (!dept) {
+            rowErrors.push(`Row ${idx + 2}: department not found: "${row.departmentName}"`)
+          }
+          if (rowErrors.length === 0) {
+            valid.push({ id: teacher.id, departmentId: dept.id })
+          }
+        } else if (type === 'deptSubjects') {
+          const subject = state.subjects.find(s => s.name.toLowerCase() === String(row.subjectName).trim().toLowerCase())
+          if (!subject) {
+            rowErrors.push(`Row ${idx + 2}: subject not found: "${row.subjectName}"`)
+          }
+          const dept = state.departments.find(d => d.name.toLowerCase() === String(row.departmentName).trim().toLowerCase())
+          if (!dept) {
+            rowErrors.push(`Row ${idx + 2}: department not found: "${row.departmentName}"`)
+          }
+          if (rowErrors.length === 0) {
+            valid.push({ id: subject.id, departmentId: dept.id })
+          }
+        } else if (type === 'teachers') {
+          const subjectNames = (row.subjects || '').split(';').map(s => s.trim()).filter(Boolean)
+          const subjectIds = []
+          const subjectUnmatched = []
+          for (const sName of subjectNames) {
+            const subj = state.subjects.find(s => s.name.toLowerCase() === sName.toLowerCase())
+            if (subj) {
+              subjectIds.push(subj.id)
+            } else {
+              subjectUnmatched.push(sName)
+            }
+          }
+          if (subjectUnmatched.length > 0) {
+            rowErrors.push(`Row ${idx + 2}: subjects not found: ${subjectUnmatched.join(', ')}`)
+          }
+
+          const classNames = (row.classes || '').split(';').map(c => c.trim()).filter(Boolean)
+          const classIds = []
+          const classUnmatched = []
+          for (const cName of classNames) {
+            const cls = state.classes.find(c => c.name.toLowerCase() === cName.toLowerCase())
+            if (cls) {
+              classIds.push(cls.id)
+            } else {
+              classUnmatched.push(cName)
+            }
+          }
+          if (classUnmatched.length > 0) {
+            rowErrors.push(`Row ${idx + 2}: classes not found: ${classUnmatched.join(', ')}`)
+          }
+
+          if (rowErrors.length === 0) {
+            valid.push({
+              name: row.name.trim(),
               subjects: subjectIds,
+              classes: classIds,
               maxPeriods: Number(row.maxPeriods) || 6,
             })
           }
@@ -252,8 +333,25 @@ export default function BulkImportModal({ open, onClose, type }) {
                             .map(id => state.subjects.find(s => s.id === id)?.name)
                             .filter(Boolean).join('; ')
                         }
+                        if (col === 'classes' && type === 'teachers') {
+                          display = (row[col] || [])
+                            .map(id => state.classes.find(c => c.id === id)?.name)
+                            .filter(Boolean).join('; ')
+                        }
                         if (col === 'classTeacher' && type === 'classes') {
                           display = state.teachers.find(t => t.id === row[col])?.name || ''
+                        }
+                        if (col === 'headTeacher' && type === 'departments') {
+                          display = state.teachers.find(t => t.id === row.headTeacherId)?.name || ''
+                        }
+                        if (col === 'departmentName' && (type === 'deptTeachers' || type === 'deptSubjects')) {
+                          display = state.departments.find(d => d.id === row.departmentId)?.name || ''
+                        }
+                        if (col === 'teacherName' && type === 'deptTeachers') {
+                          display = state.teachers.find(t => t.id === row.id)?.name || ''
+                        }
+                        if (col === 'subjectName' && type === 'deptSubjects') {
+                          display = state.subjects.find(s => s.id === row.id)?.name || ''
                         }
                         if (col === 'isOptional' && type === 'subjects') {
                           display = row[col] ? 'Yes' : 'No'

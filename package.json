@@ -1,7 +1,7 @@
 {
   "name": "shikola-timetable-creator",
-  "version": "1.0.0",
-  "codename": "bellybean",
+  "version": "1.0.7",
+  "codename": "Titan",
   "description": "Offline timetable creator for schools - by Sepio Corp",
   "author": "Sepio Corp",
   "license": "SEE LICENSE IN LICENSE",
@@ -12,7 +12,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "electron .",
-    "dist": "vite build && electron-builder"
+    "dist": "vite build && electron-builder",
+    "publish-release": "node scripts/publish-release.js",
+    "publish": "npm run dist && node scripts/publish-release.js --upload"
   },
   "build": {
     "appId": "com.sepiocorp.shikola-timetable",
@@ -38,15 +40,25 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "license": "build/license.txt",
-      "installerLanguages": ["en_US"],
+      "installerLanguages": [
+        "en_US"
+      ],
       "deleteAppDataOnUninstall": false,
       "displayLanguageSelector": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Shikola Timetable Creator"
+      "shortcutName": "Shikola Timetable Creator",
+      "runAfterFinish": true,
+      "allowElevation": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "sepiocorp",
+      "repo": "shikola.timetable.app"
     }
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "exceljs": "^4.4.0",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",

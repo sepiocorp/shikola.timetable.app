@@ -205,7 +205,7 @@ export default function SetupWizard({ onShowAbout, onShowDocs }) {
               </div>
 
               <Input label="School Motto" value={school.motto} onChange={e => setSchool({ ...school, motto: e.target.value })} placeholder="Enter school motto" />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input label="Academic Year *" value={school.academicYear} onChange={e => setSchool({ ...school, academicYear: e.target.value })} placeholder="Enter academic year" />
                 <Select label="Term" value={school.term} onChange={e => setSchool({ ...school, term: e.target.value })} options={
                   <>
@@ -218,7 +218,7 @@ export default function SetupWizard({ onShowAbout, onShowDocs }) {
                 } />
               </div>
               <Input label="Address" value={school.address} onChange={e => setSchool({ ...school, address: e.target.value })} placeholder="Enter address" />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input label="Phone" value={school.phone} onChange={e => setSchool({ ...school, phone: e.target.value })} placeholder="Enter phone number" />
                 <Input label="Email" value={school.email} onChange={e => setSchool({ ...school, email: e.target.value })} placeholder="Enter email" />
               </div>
@@ -229,7 +229,7 @@ export default function SetupWizard({ onShowAbout, onShowDocs }) {
             <div className="space-y-4">
               <h2 className="text-lg font-bold text-slate-800">School Days</h2>
               <p className="text-sm text-slate-500">Select the days your school operates.</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {DAYS.map(day => (
                   <button
                     key={day}

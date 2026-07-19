@@ -12,7 +12,7 @@ const { app } = require('electron')
 const FORMSPREE_PROJECT_ID = '3031226910165172087'
 const TELEMETRY_HOST = 'formspree.io'
 const TELEMETRY_PATH = `/f/${FORMSPREE_PROJECT_ID}`
-const REPORTING_EMAIL = 'sepiopixel@gmail.com'
+const REPORTING_EMAIL = 'mmushibi@gmail.com'
 
 const APP_VERSION = app.getVersion()
 const APP_NAME = 'Shikola Timetable Creator'
