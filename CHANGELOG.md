@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ---
 
+## [1.0.8] — Titan — 2026-07-20
+
+### Changed
+- Added in-memory data caching — subsequent app loads and page navigations are now instant with no loading states
+- Removed artificial 2-second loading delays from all 15 pages for near-instant page transitions
+- Splash screen now only shows on first launch; skipped on subsequent loads
+
+---
+
 ## [1.0.7] — Titan — 2026-07-19
 
 ### Added

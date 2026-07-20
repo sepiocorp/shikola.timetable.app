@@ -8,12 +8,8 @@ import Substitutions from './Substitutions.jsx'
 
 export default function ManageTeachers({ navigate, searchQuery }) {
   const { state, dispatch } = useApp()
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
   const [activeTab, setActiveTab] = useState('teachers')
   const substitutionsRef = useRef(null)
   const [modalOpen, setModalOpen] = useState(false)

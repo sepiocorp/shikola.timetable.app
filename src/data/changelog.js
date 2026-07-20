@@ -1,6 +1,17 @@
-export const APP_VERSION = '1.0.7'
+export const APP_VERSION = '1.0.8'
 
 export const CHANGELOG = [
+  {
+    version: '1.0.8',
+    codename: 'Titan',
+    date: '2026-07-20',
+    title: 'What\'s New in v1.0.8',
+    changes: [
+      { type: 'improvement', text: 'Added in-memory data caching — subsequent app loads and page navigations are now instant with no loading states' },
+      { type: 'improvement', text: 'Removed artificial 2-second loading delays from all 15 pages for near-instant page transitions' },
+      { type: 'improvement', text: 'Splash screen now only shows on first launch; skipped on subsequent loads' },
+    ],
+  },
   {
     version: '1.0.7',
     codename: 'Titan',

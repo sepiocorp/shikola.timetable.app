@@ -6,12 +6,7 @@ import { generateTimetable, canGenerate } from '../utils/generate.js'
 
 export default function SmartGenerate({ navigate, searchQuery }) {
   const { state, dispatch } = useApp()
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
+  const [loading, setLoading] = useState(false)
 
   const genCheck = canGenerate(state)
 

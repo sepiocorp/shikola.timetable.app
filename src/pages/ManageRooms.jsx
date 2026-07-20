@@ -1,16 +1,11 @@
-import React, { useState, forwardRef, useImperativeHandle, useEffect } from 'react'
+import React, { useState, forwardRef, useImperativeHandle } from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
 import { Button, Input, Card, PageHeader, Modal, EmptyState, Badge, Toggle, Tabs, SkeletonCard } from '../components/UI.jsx'
 
 const ManageRooms = forwardRef(function ManageRooms({ embedded, onBack, searchQuery }, ref) {
   const { state, dispatch } = useApp()
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
+  const [loading, setLoading] = useState(false)
 
   const filteredRooms = state.rooms.filter(room =>
     room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

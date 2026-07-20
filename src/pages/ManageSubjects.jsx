@@ -18,12 +18,7 @@ const COLORS = [
 
 export default function ManageSubjects({ navigate, searchQuery }) {
   const { state, dispatch } = useApp()
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
+  const [loading, setLoading] = useState(false)
 
   const filteredSubjects = state.subjects.filter(subject =>
     subject.name.toLowerCase().includes(searchQuery.toLowerCase())

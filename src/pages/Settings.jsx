@@ -205,12 +205,7 @@ function CustomFieldForm({ onAdd, state }) {
 
 export default function Settings({ searchQuery }) {
   const { state, dispatch, entityCount, entityLimit } = useApp()
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
+  const [loading, setLoading] = useState(false)
 
   const [schoolForm, setSchoolForm] = useState(state.school || {})
   const [periods, setPeriods] = useState(state.settings.periods)

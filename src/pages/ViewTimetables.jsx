@@ -18,7 +18,7 @@ export default function ViewTimetables({ navigate, searchQuery }) {
   const [paperSize, setPaperSize] = useState('a4')
   const [orientation, setOrientation] = useState('landscape')
   const [exporting, setExporting] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [bulkMode, setBulkMode] = useState(false)
   const verificationRef = useRef(null)
   const printRef = useRef(null)
@@ -27,11 +27,6 @@ export default function ViewTimetables({ navigate, searchQuery }) {
   const [sectionFilter, setSectionFilter] = useState('')
   const [departmentFilter, setDepartmentFilter] = useState('')
   const [pageTab, setPageTab] = useState('view')
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
 
   const activePeriod = state.academicPeriods.find(p => p.id === state.activePeriodId)
   const periodLabel = activePeriod ? activePeriod.name : ''

@@ -567,9 +567,11 @@ function reducer(state, action) {
 
 const AppContext = createContext(null)
 
+let cachedData = null
+
 export function AppProvider({ children }) {
-  const [state, setState] = useState(defaultData)
-  const [loading, setLoading] = useState(true)
+  const [state, setState] = useState(cachedData || defaultData)
+  const [loading, setLoading] = useState(!cachedData)
   const dispatchRef = useRef(null)
   const storageWarningDismissedRef = useRef(false)
 
@@ -578,11 +580,14 @@ export function AppProvider({ children }) {
     setState(prevState => reducer(prevState, action))
   }, [])
 
-  // Load data on mount
+  // Load data on mount (skipped if cached data is available)
   useEffect(() => {
+    if (cachedData) return
+
     async function initialize() {
       try {
         const data = await loadData()
+        cachedData = data
         setState(data)
         setLoading(false)
 
@@ -644,6 +649,7 @@ export function AppProvider({ children }) {
         }
 
         await setData(state)
+        cachedData = state
         storageWarningDismissedRef.current = false
         if (state.storageWarning) {
           dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: null })

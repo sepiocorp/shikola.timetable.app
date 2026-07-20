@@ -9,12 +9,7 @@ import LessonGroups from './LessonGroups.jsx'
 
 export default function ManageClasses({ searchQuery }) {
   const { state, dispatch } = useApp()
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
+  const [loading, setLoading] = useState(false)
 
   const filteredClasses = state.classes.filter(cls =>
     cls.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
 import { Button, Input, Card, PageHeader, Modal, EmptyState, Badge, Tabs, SkeletonCard } from '../components/UI.jsx'
@@ -6,12 +6,7 @@ import BulkImportModal from '../components/BulkImportModal.jsx'
 
 export default function Departments({ searchQuery }) {
   const { state, dispatch } = useApp()
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
+  const [loading, setLoading] = useState(false)
 
   const filteredDepartments = state.departments.filter(dept =>
     dept.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

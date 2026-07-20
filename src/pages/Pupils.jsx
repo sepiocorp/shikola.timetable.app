@@ -1,4 +1,4 @@
-import React, { useState, forwardRef, useImperativeHandle, useEffect } from 'react'
+import React, { useState, forwardRef, useImperativeHandle } from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
 import { Button, Input, Card, PageHeader, Modal, EmptyState, Badge, SkeletonCard } from '../components/UI.jsx'
@@ -6,12 +6,7 @@ import BulkImportModal from '../components/BulkImportModal.jsx'
 
 const Pupils = forwardRef(function Pupils({ embedded, onBack, searchQuery }, ref) {
   const { state, dispatch } = useApp()
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
+  const [loading, setLoading] = useState(false)
 
   const filteredPupils = state.pupils.filter(pupil =>
     pupil.name.toLowerCase().includes(searchQuery.toLowerCase())

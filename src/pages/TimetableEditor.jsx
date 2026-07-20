@@ -6,12 +6,8 @@ import { generateTimetable, canGenerate } from '../utils/generate.js'
 
 export default function TimetableEditor({ navigate, searchQuery }) {
   const { state, dispatch, checkConflicts } = useApp()
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
   const [selectedClass, setSelectedClass] = useState('')
   const [cellModal, setCellModal] = useState(null)
   const [form, setForm] = useState({ teacherId: '', subjectId: '', roomId: '', secondaryClassId: '', secondarySubjectId: '', secondaryTeacherId: '', lessonLength: 1, lessonGroupId: '' })

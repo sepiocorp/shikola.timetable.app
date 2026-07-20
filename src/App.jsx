@@ -147,11 +147,13 @@ function compareVersions(latest, current) {
   return false
 }
 
+let hasShownSplash = false
+
 export default function App() {
   const { state, dispatch } = useApp()
   const [page, setPage] = useState(() => localStorage.getItem('shikola-current-page') || 'home')
-  const [loading, setLoading] = useState(true)
-  const [loadProgress, setLoadProgress] = useState(0)
+  const [loading, setLoading] = useState(!hasShownSplash)
+  const [loadProgress, setLoadProgress] = useState(hasShownSplash ? 100 : 0)
   const [showDocs, setShowDocs] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -168,6 +170,7 @@ export default function App() {
   const { showWhatsNew, dismissWhatsNew } = useWhatsNew()
 
   useEffect(() => {
+    if (hasShownSplash) return
     const duration = 800
     const interval = setInterval(() => {
       setLoadProgress(prev => {
@@ -178,6 +181,7 @@ export default function App() {
     const timer = setTimeout(() => {
       setLoadProgress(100)
       setLoading(false)
+      hasShownSplash = true
     }, duration)
     return () => { clearInterval(interval); clearTimeout(timer) }
   }, [])

@@ -1,15 +1,10 @@
-import React, { useMemo, useEffect, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useApp, getScheduleForClass } from '../store/AppContext.jsx'
 import { Card, PageHeader, Badge, ProgressBar, Button, SkeletonCard } from '../components/UI.jsx'
 
 export default function Statistics({ embedded, onBack, navigate }) {
   const { state } = useApp()
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
+  const [loading, setLoading] = useState(false)
 
   const stats = useMemo(() => {
     const teachingPeriods = state.settings.periods.filter(p => !p.isBreak)
