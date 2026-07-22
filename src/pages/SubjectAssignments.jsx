@@ -79,20 +79,6 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
 
   return (
     <div className="p-4 md:p-8">
-      {!embedded ? (
-        <PageHeader
-          title="Subject Assignments"
-          subtitle="Assign subjects to classes with periods/week limits"
-          action={
-            <div className="flex gap-2">
-              <Button onClick={openAdd} disabled={state.classes.length === 0 || state.subjects.length === 0}>
-                + Add Assignment
-              </Button>
-            </div>
-          }
-        />
-      ) : null}
-
       {state.classes.length === 0 || state.subjects.length === 0 ? (
         <Card className="p-6">
           <EmptyState
@@ -117,6 +103,11 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
               ]}
               active={tab}
               onChange={(id) => { setTab(id); sounds.click() }}
+              action={
+                <Button onClick={openAdd} disabled={state.classes.length === 0 || state.subjects.length === 0}>
+                  + Add Assignment
+                </Button>
+              }
             />
           </div>
 

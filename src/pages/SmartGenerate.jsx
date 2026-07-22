@@ -168,25 +168,6 @@ export default function SmartGenerate({ navigate, searchQuery }) {
 
   return (
     <div className="p-4 md:p-8">
-      <PageHeader
-        title="Smart Generate"
-        subtitle="Auto-generate timetables with intelligent constraint solving"
-        action={
-          <Button
-            variant="success"
-            disabled={selectedClassIds.length === 0 || generating}
-            onClick={handleGenerate}
-          >
-            <span className="flex items-center gap-1.5">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              Generate ({selectedClassIds.length} class{selectedClassIds.length !== 1 ? 'es' : ''})
-            </span>
-          </Button>
-        }
-      />
-
       <div className="mb-4">
         <Tabs
           tabs={[
@@ -196,6 +177,20 @@ export default function SmartGenerate({ navigate, searchQuery }) {
           ]}
           active={activeTab}
           onChange={(id) => { setActiveTab(id); sounds.click() }}
+          action={
+            <Button
+              variant="success"
+              disabled={selectedClassIds.length === 0 || generating}
+              onClick={handleGenerate}
+            >
+              <span className="flex items-center gap-1.5">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Generate ({selectedClassIds.length} class{selectedClassIds.length !== 1 ? 'es' : ''})
+              </span>
+            </Button>
+          }
         />
       </div>
 

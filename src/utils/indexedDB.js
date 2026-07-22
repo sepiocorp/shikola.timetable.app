@@ -60,7 +60,6 @@ const defaultData = {
   lunchConstraint: { enabled: false, afterPeriodId: null, beforePeriodId: null },
   educationBlocks: [],
   buildings: [],
-  pupils: [],
   autoRelax: false,
   language: 'en',
   backupHistory: [],

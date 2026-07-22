@@ -16,7 +16,6 @@ export default function Departments({ searchQuery }) {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({ name: '', code: '', headTeacherId: '' })
-  const [viewMode, setViewMode] = useState('list')
   const [bulkOpen, setBulkOpen] = useState(false)
   const [bulkType, setBulkType] = useState('departments')
 
@@ -91,26 +90,6 @@ export default function Departments({ searchQuery }) {
 
   return (
     <div className="p-4 md:p-8">
-      <PageHeader
-        title={tab === 'assignments' ? 'Teacher & Subject Assignments' : 'Departments'}
-        subtitle={tab === 'assignments' ? 'Assign teachers and subjects to departments' : `${state.departments.length} department(s) configured`}
-        action={
-          <div className="flex gap-2">
-            {tab === 'departments' && <>
-              <Button variant="secondary" onClick={() => { setViewMode(viewMode === 'list' ? 'grid' : 'list'); sounds.click() }}>
-                {viewMode === 'list' ? 'Grid View' : 'List View'}
-              </Button>
-              <Button variant="secondary" onClick={() => { sounds.click(); setBulkType('departments'); setBulkOpen(true) }}>Bulk Import</Button>
-              <Button onClick={openAdd}>+ Add Department</Button>
-            </>}
-            {tab === 'assignments' && <>
-              <Button variant="secondary" onClick={() => { sounds.click(); setBulkType('deptTeachers'); setBulkOpen(true) }}>Bulk Import Teachers</Button>
-              <Button variant="secondary" onClick={() => { sounds.click(); setBulkType('deptSubjects'); setBulkOpen(true) }}>Bulk Import Subjects</Button>
-            </>}
-          </div>
-        }
-      />
-
       <div className="mb-4">
         <Tabs
           tabs={[
@@ -119,6 +98,18 @@ export default function Departments({ searchQuery }) {
           ]}
           active={tab}
           onChange={(id) => { setTab(id); sounds.click() }}
+          action={
+            <div className="flex gap-2">
+              {tab === 'departments' && <>
+                <Button variant="secondary" onClick={() => { sounds.click(); setBulkType('departments'); setBulkOpen(true) }}>Bulk Import</Button>
+                <Button onClick={openAdd}>+ Add Department</Button>
+              </>}
+              {tab === 'assignments' && <>
+                <Button variant="secondary" onClick={() => { sounds.click(); setBulkType('deptTeachers'); setBulkOpen(true) }}>Bulk Import Teachers</Button>
+                <Button variant="secondary" onClick={() => { sounds.click(); setBulkType('deptSubjects'); setBulkOpen(true) }}>Bulk Import Subjects</Button>
+              </>}
+            </div>
+          }
         />
       </div>
 
@@ -140,7 +131,7 @@ export default function Departments({ searchQuery }) {
               action={<Button onClick={openAdd}>+ Add Department</Button>}
             />
           </Card>
-        ) : viewMode === 'list' ? (
+        ) : (
           <Card className="overflow-auto">
             <table className="w-full border-collapse">
               <thead>
@@ -182,45 +173,6 @@ export default function Departments({ searchQuery }) {
               </tbody>
             </table>
           </Card>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredDepartments.map(dept => (
-              <Card key={dept.id} className="p-5">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center">
-                      <span className="text-sm font-bold text-brand-700">
-                        {dept.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">{dept.name}</p>
-                      {dept.code && <p className="text-xs text-slate-500">Code: {dept.code}</p>}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => openEdit(dept)} className="text-slate-400 hover:text-brand-600">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                    <button onClick={() => handleDelete(dept.id)} className="text-slate-400 hover:text-red-500">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                <div className="mt-3 space-y-1">
-                  {dept.headTeacherId && <p className="text-xs text-slate-500">Head: {getTeacherName(dept.headTeacherId)}</p>}
-                  <div className="flex gap-2">
-                    <Badge color="blue">{getDeptTeachers(dept.id).length} teachers</Badge>
-                    <Badge color="slate">{getDeptSubjects(dept.id).length} subjects</Badge>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
         )
       ) : (
         <div className="space-y-6">

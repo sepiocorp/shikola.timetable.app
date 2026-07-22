@@ -275,6 +275,43 @@ ipcMain.handle('telemetry:getConsent', async () => {
   return null
 })
 
+// Detect if Shikola Management System is installed
+ipcMain.handle('app:checkShikolaManagementInstalled', async () => {
+  try {
+    const commonPaths = [
+      path.join('C:', 'Program Files', 'Shikola', 'Shikola Management System'),
+      path.join('C:', 'Program Files (x86)', 'Shikola', 'Shikola Management System'),
+      path.join('C:', 'Program Files', 'Shikola Management System'),
+      path.join('C:', 'Program Files (x86)', 'Shikola Management System'),
+      path.join(app.getPath('home'), 'AppData', 'Local', 'Programs', 'Shikola Management System'),
+      path.join(app.getPath('home'), 'AppData', 'Roaming', 'Shikola Management System'),
+    ]
+
+    for (const checkPath of commonPaths) {
+      if (fs.existsSync(checkPath)) {
+        return { installed: true, path: checkPath }
+      }
+    }
+
+    // Also check for executable in common locations
+    const exePaths = [
+      path.join('C:', 'Program Files', 'Shikola', 'Shikola Management System', 'Shikola Management System.exe'),
+      path.join('C:', 'Program Files (x86)', 'Shikola', 'Shikola Management System', 'Shikola Management System.exe'),
+    ]
+
+    for (const exePath of exePaths) {
+      if (fs.existsSync(exePath)) {
+        return { installed: true, path: path.dirname(exePath) }
+      }
+    }
+
+    return { installed: false }
+  } catch (err) {
+    console.error('[App] Failed to check Shikola Management System installation:', err.message)
+    return { installed: false }
+  }
+})
+
 // --- Auto-updater IPC handlers ---
 ipcMain.handle('update:installNow', () => {
   if (autoUpdater) {

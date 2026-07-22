@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ---
 
+## [1.1.0] — Eclipse — 2026-07-22
+
+### Added
+- Complete UI redesign with modern styling, new fonts (Nunito, Varela Round, Inter), and smooth animations
+- Dark mode support with system-aware theming
+- Detects Shikola Management System installation — bypasses entity and storage limits when installed
+
+### Changed
+- Storage limit increased from 50 MB to 100 MB
+- Lock screen now auto-unlocks when limits are no longer exceeded
+- Redesigned sidebar, dashboard, and all management pages for a cleaner experience
+- About page now displays the version codename alongside the version number
+
+### Removed
+- Pupils page and all related code for a streamlined experience
+
+---
+
 ## [1.0.8] — Titan — 2026-07-20
 
 ### Changed

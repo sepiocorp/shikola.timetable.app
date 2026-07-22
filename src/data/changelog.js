@@ -1,6 +1,23 @@
-export const APP_VERSION = '1.0.8'
+export const APP_VERSION = '1.1.0'
+export const APP_CODENAME = 'Eclipse'
 
 export const CHANGELOG = [
+  {
+    version: '1.1.0',
+    codename: 'Eclipse',
+    date: '2026-07-22',
+    title: 'What\'s New in v1.1.0',
+    changes: [
+      { type: 'feature', text: 'Complete UI redesign with modern styling, new fonts (Nunito, Varela Round, Inter), and smooth animations' },
+      { type: 'feature', text: 'Dark mode support with system-aware theming' },
+      { type: 'feature', text: 'Detects Shikola Management System installation — bypasses entity and storage limits when installed' },
+      { type: 'improvement', text: 'Storage limit increased from 50 MB to 100 MB' },
+      { type: 'improvement', text: 'Lock screen now auto-unlocks when limits are no longer exceeded' },
+      { type: 'improvement', text: 'Redesigned sidebar, dashboard, and all management pages for a cleaner experience' },
+      { type: 'improvement', text: 'About page now displays the version codename alongside the version number' },
+      { type: 'fix', text: 'Removed Pupils page and all related code for a streamlined experience' },
+    ],
+  },
   {
     version: '1.0.8',
     codename: 'Titan',

@@ -23,12 +23,6 @@ const CONFIG = {
     columns: ['name', 'code', 'color', 'isOptional', 'secondaryClass'],
     required: ['name'],
   },
-  pupils: {
-    title: 'Bulk Import Pupils',
-    action: 'BULK_ADD_PUPILS',
-    columns: ['name', 'classId', 'email', 'phone', 'subjects'],
-    required: ['name'],
-  },
   departments: {
     title: 'Bulk Import Departments',
     action: 'BULK_ADD_DEPARTMENTS',

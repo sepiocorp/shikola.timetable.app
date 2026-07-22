@@ -143,9 +143,6 @@ function reducer(state, action) {
     case 'BULK_ADD_SUBJECTS':
       return { ...state, subjects: [...state.subjects, ...action.payload.map(s => ({ ...s, id: genId() }))] }
 
-    case 'BULK_ADD_PUPILS':
-      return { ...state, pupils: [...state.pupils, ...action.payload.map(p => ({ ...p, id: genId() }))] }
-
     case 'UPDATE_SUBJECT':
       return {
         ...state,
@@ -452,18 +449,6 @@ function reducer(state, action) {
     case 'DELETE_BUILDING':
       return { ...state, buildings: state.buildings.filter(b => b.id !== action.payload) }
 
-    case 'ADD_PUPIL':
-      return { ...state, pupils: [...state.pupils, { ...action.payload, id: genId() }] }
-
-    case 'UPDATE_PUPIL':
-      return {
-        ...state,
-        pupils: state.pupils.map(s => s.id === action.payload.id ? { ...s, ...action.payload } : s),
-      }
-
-    case 'DELETE_PUPIL':
-      return { ...state, pupils: state.pupils.filter(s => s.id !== action.payload) }
-
     case 'SET_AUTO_RELAX':
       return { ...state, autoRelax: action.payload }
 
@@ -607,7 +592,6 @@ export function AppProvider({ children }) {
             subjectCount: data.subjects.length,
             roomCount: data.rooms.length,
             timetableEntries: data.timetable.length,
-            pupilCount: data.pupils.length,
           }).catch(() => {})
         }
       } catch (e) {
@@ -664,11 +648,30 @@ export function AppProvider({ children }) {
     saveData()
   }, [state, loading])
 
-  // Check app limits (entity count + storage size) — locks app if exceeded
+  // Check app limits (entity count + storage size) — locks/unlocks app as needed
   const ENTITY_LIMIT = 100
-  const STORAGE_LIMIT_MB = 50
+  const STORAGE_LIMIT_MB = 100
 
-  const checkAppLimits = useCallback((data) => {
+  const checkAppLimits = useCallback(async (data) => {
+    // Check if Shikola Management System is installed - if so, bypass limits
+    let shikolaManagementInstalled = false
+    if (window.electronAPI?.checkShikolaManagementInstalled) {
+      try {
+        const result = await window.electronAPI.checkShikolaManagementInstalled()
+        shikolaManagementInstalled = result.installed
+      } catch (err) {
+        console.error('[checkAppLimits] Failed to check Shikola Management System installation:', err)
+      }
+    }
+
+    if (shikolaManagementInstalled) {
+      // Unlock if Shikola Management System is installed
+      if (data.appLocked) {
+        dispatchRef.current({ type: 'SET_APP_UNLOCKED' })
+      }
+      return
+    }
+
     const entityCount =
       (data.teachers?.length || 0) +
       (data.classes?.length || 0) +
@@ -679,6 +682,7 @@ export function AppProvider({ children }) {
     const sizeMB = dataSize / (1024 * 1024)
 
     if (entityCount > ENTITY_LIMIT) {
+      if (data.appLocked && data.lockReason?.type === 'entity_limit') return
       dispatchRef.current({
         type: 'SET_APP_LOCKED',
         payload: {
@@ -698,6 +702,7 @@ export function AppProvider({ children }) {
     }
 
     if (sizeMB > STORAGE_LIMIT_MB) {
+      if (data.appLocked && data.lockReason?.type === 'storage_limit') return
       dispatchRef.current({
         type: 'SET_APP_LOCKED',
         payload: {
@@ -715,13 +720,17 @@ export function AppProvider({ children }) {
       }
       return
     }
+
+    if (data.appLocked) {
+      dispatchRef.current({ type: 'SET_APP_UNLOCKED' })
+    }
   }, [])
 
-  // Re-check limits whenever entity counts change
+  // Re-check limits whenever data changes
   useEffect(() => {
     if (loading) return
     checkAppLimits(state)
-  }, [state.teachers, state.classes, state.subjects, state.rooms, loading, checkAppLimits])
+  }, [state, loading, checkAppLimits])
 
   const dispatch = dispatchRef.current
 

@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   getInstallInfo: () => ipcRenderer.invoke('app:getInstallInfo'),
   checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
+  checkShikolaManagementInstalled: () => ipcRenderer.invoke('app:checkShikolaManagementInstalled'),
 
   // Auto-update APIs
   updater: {

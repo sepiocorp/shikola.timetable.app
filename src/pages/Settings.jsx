@@ -1036,7 +1036,7 @@ export default function Settings({ searchQuery }) {
               {state.educationBlocks.map(block => (
                 <div key={block.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <Badge color="indigo">{block.length} periods</Badge>
+                    <Badge color="slate">{block.length} periods</Badge>
                     <div>
                       <p className="text-sm font-medium text-slate-700">{block.subjectId ? state.subjects.find(s => s.id === block.subjectId)?.name || 'Unknown' : 'Any subject'}</p>
                       <p className="text-xs text-slate-500">{block.classId ? state.classes.find(c => c.id === block.classId)?.name || 'Unknown' : 'All classes'} · {block.days?.join(', ') || 'Any day'}</p>
@@ -1070,7 +1070,7 @@ export default function Settings({ searchQuery }) {
               {state.customFields.map(field => (
                 <div key={field.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <Badge color="indigo">{field.key}</Badge>
+                    <Badge color="slate">{field.key}</Badge>
                     <div>
                       <p className="text-sm font-medium text-slate-700">{field.label}</p>
                       <p className="text-xs text-slate-500">{field.subjectId ? `Subject: ${state.subjects.find(s => s.id === field.subjectId)?.name || 'Unknown'}` : 'All subjects'} · {field.classId ? `Class: ${state.classes.find(c => c.id === field.classId)?.name || 'Unknown'}` : 'All classes'}</p>
@@ -1141,7 +1141,7 @@ export default function Settings({ searchQuery }) {
                 <h2 className="text-2xl font-bold text-slate-800">Shikola Timetable Creator</h2>
                 <p className="text-sm text-slate-500 mt-1">by Sepio Corp</p>
                 <div className="flex items-center gap-2 mt-3">
-                  <Badge color="blue">Version {APP_VERSION}</Badge>
+                  <Badge color="blue">Version {APP_VERSION} "{APP_CODENAME}"</Badge>
                   <Badge color="green">Desktop App</Badge>
                   <Badge color="slate">Offline</Badge>
                 </div>
