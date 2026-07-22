@@ -14,7 +14,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - Detects Shikola Management System installation — bypasses entity and storage limits when installed
 
 ### Changed
-- Storage limit increased from 50 MB to 100 MB
 - Lock screen now auto-unlocks when limits are no longer exceeded
 - Redesigned sidebar, dashboard, and all management pages for a cleaner experience
 - About page now displays the version codename alongside the version number

@@ -650,7 +650,7 @@ export function AppProvider({ children }) {
 
   // Check app limits (entity count + storage size) — locks/unlocks app as needed
   const ENTITY_LIMIT = 100
-  const STORAGE_LIMIT_MB = 100
+  const STORAGE_LIMIT_MB = 50
 
   const checkAppLimits = useCallback(async (data) => {
     // Check if Shikola Management System is installed - if so, bypass limits

@@ -11,7 +11,6 @@ export const CHANGELOG = [
       { type: 'feature', text: 'Complete UI redesign with modern styling, new fonts (Nunito, Varela Round, Inter), and smooth animations' },
       { type: 'feature', text: 'Dark mode support with system-aware theming' },
       { type: 'feature', text: 'Detects Shikola Management System installation — bypasses entity and storage limits when installed' },
-      { type: 'improvement', text: 'Storage limit increased from 50 MB to 100 MB' },
       { type: 'improvement', text: 'Lock screen now auto-unlocks when limits are no longer exceeded' },
       { type: 'improvement', text: 'Redesigned sidebar, dashboard, and all management pages for a cleaner experience' },
       { type: 'improvement', text: 'About page now displays the version codename alongside the version number' },
