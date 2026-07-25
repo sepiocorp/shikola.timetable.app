@@ -1,7 +1,20 @@
-export const APP_VERSION = '1.1.0'
-export const APP_CODENAME = 'Eclipse'
+export const APP_VERSION = '1.2.0'
+export const APP_CODENAME = 'Sunshine'
 
 export const CHANGELOG = [
+  {
+    version: '1.2.0',
+    codename: 'Sunshine',
+    date: '2026-07-25',
+    title: 'What\'s New in v1.2.0',
+    changes: [
+      { type: 'feature', text: 'Automatic updates: new releases are now checked, downloaded, and optionally installed without manual interaction' },
+      { type: 'feature', text: 'Background install option installs downloaded updates automatically when you quit the app' },
+      { type: 'feature', text: 'Optional auto-restart shows a 60-second countdown before installing and relaunching' },
+      { type: 'feature', text: 'New Updates preferences in Settings → About control automatic checks, background install, and auto-restart' },
+      { type: 'improvement', text: 'Periodic update checks run automatically every 60 minutes while the app is open' },
+    ],
+  },
   {
     version: '1.1.0',
     codename: 'Eclipse',

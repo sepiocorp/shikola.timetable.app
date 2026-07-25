@@ -10,11 +10,53 @@ let autoUpdater = null
 if (!isDev) {
   try {
     autoUpdater = require('electron-updater').autoUpdater
-    autoUpdater.autoDownload = true
-    autoUpdater.autoInstallOnAppQuit = true
   } catch (err) {
     console.error('[AutoUpdater] Failed to load:', err.message)
   }
+}
+
+// Persistent auto-update preferences shared between main and renderer
+const defaultUpdateConfig = {
+  enabled: true,
+  autoInstall: false,
+  installOnQuit: true,
+  checkIntervalMinutes: 60,
+}
+let updateConfig = { ...defaultUpdateConfig }
+let updateCheckInterval = null
+let autoInstallTimeout = null
+
+function getUpdateConfigPath() {
+  return path.join(app.getPath('userData'), 'auto-update-config.json')
+}
+
+function loadUpdateConfig() {
+  try {
+    const configPath = getUpdateConfigPath()
+    if (fs.existsSync(configPath)) {
+      const data = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      updateConfig = { ...defaultUpdateConfig, ...data }
+    }
+  } catch (err) {
+    console.error('[AutoUpdater] Failed to load config:', err.message)
+  }
+  return updateConfig
+}
+
+function saveUpdateConfig(config) {
+  try {
+    updateConfig = { ...updateConfig, ...config }
+    fs.writeFileSync(getUpdateConfigPath(), JSON.stringify(updateConfig, null, 2))
+    applyUpdateConfig()
+  } catch (err) {
+    console.error('[AutoUpdater] Failed to save config:', err.message)
+  }
+}
+
+function applyUpdateConfig() {
+  if (!autoUpdater) return
+  autoUpdater.autoDownload = updateConfig.enabled !== false
+  autoUpdater.autoInstallOnAppQuit = updateConfig.enabled !== false && updateConfig.installOnQuit !== false
 }
 
 // Track install/update info
@@ -315,6 +357,10 @@ ipcMain.handle('app:checkShikolaManagementInstalled', async () => {
 // --- Auto-updater IPC handlers ---
 ipcMain.handle('update:installNow', () => {
   if (autoUpdater) {
+    if (autoInstallTimeout) {
+      clearTimeout(autoInstallTimeout)
+      autoInstallTimeout = null
+    }
     autoUpdater.quitAndInstall(false, true)
   }
 })
@@ -332,8 +378,20 @@ ipcMain.handle('update:downloadUpdate', async () => {
 
 ipcMain.handle('update:installOnQuit', () => {
   if (autoUpdater) {
+    if (autoInstallTimeout) {
+      clearTimeout(autoInstallTimeout)
+      autoInstallTimeout = null
+    }
     autoUpdater.autoInstallOnAppQuit = true
   }
+})
+
+ipcMain.handle('update:setConfig', (_event, config) => {
+  saveUpdateConfig(config)
+})
+
+ipcMain.handle('update:getConfig', async () => {
+  return loadUpdateConfig()
 })
 
 // --- Auto-updater event forwarding to renderer ---
@@ -360,6 +418,22 @@ function setupAutoUpdater() {
 
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[AutoUpdater] Update downloaded:', info.version)
+    if (updateConfig.autoInstall) {
+      console.log('[AutoUpdater] Auto-install enabled; will restart in 60 seconds')
+      BrowserWindow.getAllWindows().forEach((win) => {
+        win.webContents.send('update:auto-install-pending', {
+          version: info.version,
+          releaseNotes: info.releaseNotes,
+          secondsRemaining: 60,
+        })
+      })
+      if (autoInstallTimeout) clearTimeout(autoInstallTimeout)
+      autoInstallTimeout = setTimeout(() => {
+        console.log('[AutoUpdater] Auto-installing update now')
+        autoUpdater.quitAndInstall(false, true)
+      }, 60000)
+      return
+    }
     BrowserWindow.getAllWindows().forEach((win) => {
       win.webContents.send('update:downloaded', {
         version: info.version,
@@ -391,15 +465,31 @@ app.whenReady().then(() => {
   buildMenu()
   createWindow()
 
-  // Start auto-update check after a short delay (production only)
+  // Start auto-update checks (production only)
   if (autoUpdater) {
+    loadUpdateConfig()
+    applyUpdateConfig()
     setupAutoUpdater()
-    setTimeout(() => {
+
+    const scheduleUpdateCheck = () => {
+      if (!updateConfig.enabled) {
+        console.log('[AutoUpdater] Auto-update disabled; skipping scheduled check')
+        return
+      }
       console.log('[AutoUpdater] Checking for updates...')
       autoUpdater.checkForUpdates().catch((err) => {
         console.error('[AutoUpdater] Check failed:', err.message)
       })
-    }, 5000)
+    }
+
+    // Initial check shortly after startup
+    setTimeout(scheduleUpdateCheck, 5000)
+
+    // Recurring background checks while app is running
+    if (updateCheckInterval) clearInterval(updateCheckInterval)
+    updateCheckInterval = setInterval(() => {
+      scheduleUpdateCheck()
+    }, Math.max(15, updateConfig.checkIntervalMinutes || 60) * 60 * 1000)
   }
 
   app.on('activate', () => {

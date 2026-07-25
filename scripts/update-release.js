@@ -130,7 +130,7 @@ async function main() {
     process.exit(1)
   }
 
-  const assetExts = ['.exe', '.yml']
+  const assetExts = ['.exe', '.yml', '.blockmap']
   const files = fs.readdirSync(distDir).filter(f =>
     assetExts.some(ext => f.endsWith(ext))
   )

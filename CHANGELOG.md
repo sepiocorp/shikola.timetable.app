@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ---
 
+## [1.2.0] — Sunshine — 2026-07-25
+
+### Added
+- Automatic updates: new releases are now checked, downloaded, and optionally installed without manual interaction
+- Background install option installs downloaded updates automatically when you quit the app
+- Optional auto-restart with a 60-second countdown before installing and relaunching
+- New Updates preferences in Settings → About to control automatic checks, background install, and auto-restart
+
+### Changed
+- Periodic update checks now run automatically every 60 minutes while the app is open
+
+---
+
 ## [1.1.0] — Eclipse — 2026-07-22
 
 ### Added

@@ -223,6 +223,9 @@ function reducer(state, action) {
     case 'SET_APPEARANCE':
       return { ...state, appearance: { ...state.appearance, ...action.payload } }
 
+    case 'SET_AUTO_UPDATE':
+      return { ...state, autoUpdate: { ...state.autoUpdate, ...action.payload } }
+
     case 'ADD_ACADEMIC_PERIOD':
       return { ...state, academicPeriods: [...state.academicPeriods, { ...action.payload, id: genId() }] }
 
@@ -736,7 +739,17 @@ export function AppProvider({ children }) {
 
   const checkConflicts = useCallback((entry, existingTimetable = state.timetable) => {
     const conflicts = []
-    const period = state.settings.periods.find(p => p.id === entry.periodId)
+    const getPeriod = (item) => {
+      const schedule = getScheduleForClass(state, item.classId)
+      return schedule.periods.find(p => p.id === item.periodId)
+    }
+    const period = getPeriod(entry)
+    const getTimeKey = (item) => {
+      const itemPeriod = getPeriod(item)
+      return itemPeriod?.start && itemPeriod?.end
+        ? `${item.day}|${itemPeriod.start}|${itemPeriod.end}`
+        : `${item.day}-${item.periodId}`
+    }
     if (period?.isBreak) {
       conflicts.push({ type: 'break', message: 'Cannot schedule during a break period' })
       return conflicts
@@ -757,8 +770,9 @@ export function AppProvider({ children }) {
       }
     }
 
+    const entryTimeKey = getTimeKey(entry)
     for (const e of existingTimetable) {
-      if (e.day !== entry.day || e.periodId !== entry.periodId) continue
+      if (getTimeKey(e) !== entryTimeKey) continue
       if (entry.id && e.id === entry.id) continue
 
       if (entry.teacherId && e.teacherId === entry.teacherId) {
@@ -808,7 +822,7 @@ export function AppProvider({ children }) {
       }
     }
     return conflicts
-  }, [state.timetable, state.teachers, state.classes, state.rooms, state.settings.periods, state.teacherTimeOff])
+  }, [state, state.timetable, state.teachers, state.classes, state.rooms, state.settings.periods, state.sections, state.teacherTimeOff])
 
   const entityCount =
     (state.teachers?.length || 0) +

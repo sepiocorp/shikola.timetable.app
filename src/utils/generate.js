@@ -2,11 +2,21 @@ function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
 }
 
-function shuffleArray(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[arr[i], arr[j]] = [arr[j], arr[i]]
-  }
+function getPeriodTime(schedule, periodId, fallbackPeriods) {
+  const periods = schedule?.periods || fallbackPeriods
+  const period = periods?.find(p => p.id === periodId)
+  return period ? { start: period.start, end: period.end } : null
+}
+
+function makeConflictSlotKey(day, periodStart, periodEnd, periodId) {
+  // Use actual wall-clock time for conflict keys so different sections/
+  // sessions (e.g. morning vs afternoon vs full-day) only conflict when they
+  // share the exact same start/end time. Falls back to periodId when time data
+  // is unavailable. (Aligned school periods are fully supported; partial overlaps
+  // between differently-offset sections would need a range-overlap check.)
+  return (periodStart && periodEnd)
+    ? `${day}|${periodStart}|${periodEnd}`
+    : `${day}-${periodId}`
 }
 
 function getTeacherTotalCount(teacherDailyCount, teacherId) {
@@ -177,14 +187,19 @@ export function generateTimetable({
     ? classes.filter(c => classIds.includes(c.id))
     : classes
 
-  // Track occupancy across all classes (including existing entries for non-target classes)
-  const teacherBusy = {} // `${day}-${periodId}` -> Set of teacherIds
-  const roomBusy = {} // `${day}-${periodId}` -> Set of roomIds
+  // Track occupancy across all classes (including existing entries for non-target classes).
+  // Keys are based on actual wall-clock time (`day|start|end`) so different sections/
+  // sessions (morning/afternoon/full-day) only conflict when their periods truly overlap,
+  // while preventing double-booking of teachers/rooms at the same real time.
+  const teacherBusy = {} // time-key -> Set of teacherIds
+  const roomBusy = {} // time-key -> Set of roomIds
   const teacherDailyCount = {} // teacherId -> { day -> count }
 
   // Seed occupancy from existing entries (for classes not being regenerated)
   for (const e of existingEntries) {
-    const slotKey = `${e.day}-${e.periodId}`
+    const schedule = getScheduleForClassFn?.(e.classId)
+    const periodTime = getPeriodTime(schedule, e.periodId, periods)
+    const slotKey = makeConflictSlotKey(e.day, periodTime?.start, periodTime?.end, e.periodId)
     if (e.teacherId) {
       if (!teacherBusy[slotKey]) teacherBusy[slotKey] = new Set()
       teacherBusy[slotKey].add(e.teacherId)
@@ -217,10 +232,35 @@ export function generateTimetable({
   const totalClasses = targetClasses.length
   let classIndex = 0
 
+  function patternizeRequests(requests) {
+    const groups = []
+    const groupMap = new Map()
+    for (const request of requests) {
+      const key = `${request.subject.id}-${request.teacherId || ''}`
+      if (!groupMap.has(key)) {
+        const group = { subject: request.subject, teacherId: request.teacherId || '', count: 0 }
+        groupMap.set(key, group)
+        groups.push(group)
+      }
+      groupMap.get(key).count++
+    }
+
+    const patterned = []
+    let remaining = requests.length
+    while (remaining > 0) {
+      for (const group of groups) {
+        if (group.count <= 0) continue
+        patterned.push({ subject: group.subject, teacherId: group.teacherId })
+        group.count--
+        remaining--
+      }
+    }
+    return patterned
+  }
+
   // Build subject list based on weights, subjectAssignments, or even distribution
   function buildSubjectList(slotsLength, teachableSubjects, clsId) {
     const shuffledSubjects = [...teachableSubjects]
-    shuffleArray(shuffledSubjects)
 
     // If subjectAssignments exist for this class, use them for period limits
     const classAssignments = subjectAssignments
@@ -229,43 +269,15 @@ export function generateTimetable({
 
     if (classAssignments.length > 0) {
       const list = []
-      const assignedSubjectIds = new Set()
       for (const assignment of classAssignments) {
         const subj = shuffledSubjects.find(s => s.id === assignment.subjectId)
-        if (subj) {
-          const periods = assignment.periodsPerWeek || 1
-          for (let i = 0; i < periods; i++) {
-            list.push(subj)
-          }
-          assignedSubjectIds.add(assignment.subjectId)
+        if (!subj) continue
+        const periods = Math.max(0, Number(assignment.periodsPerWeek) || 0)
+        for (let i = 0; i < periods; i++) {
+          list.push({ subject: subj, teacherId: assignment.teacherId || '' })
         }
       }
-      // If assigned total < slots, fill remainder with unassigned subjects (even distribution)
-      if (list.length < slotsLength) {
-        const unassigned = shuffledSubjects.filter(s => !assignedSubjectIds.has(s.id))
-        if (unassigned.length > 0) {
-          const remainder = slotsLength - list.length
-          const evenPerSubject = Math.floor(remainder / unassigned.length)
-          const extra = remainder % unassigned.length
-          for (let i = 0; i < unassigned.length; i++) {
-            const count = evenPerSubject + (i < extra ? 1 : 0)
-            for (let j = 0; j < count; j++) {
-              list.push(unassigned[i])
-            }
-          }
-        } else {
-          // All subjects have assignments but total < slots; pad with random assigned subjects
-          while (list.length < slotsLength && shuffledSubjects.length > 0) {
-            list.push(shuffledSubjects[Math.floor(Math.random() * shuffledSubjects.length)])
-          }
-        }
-      }
-      // Trim if over
-      if (list.length > slotsLength) {
-        list.length = slotsLength
-      }
-      shuffleArray(list)
-      return list
+      return patternizeRequests(list)
     }
 
     if (subjectWeights) {
@@ -275,7 +287,7 @@ export function generateTimetable({
         const weight = subjectWeights[subj.id]
         if (weight && weight > 0) {
           for (let i = 0; i < weight; i++) {
-            list.push(subj)
+            list.push({ subject: subj, teacherId: '' })
           }
         }
       }
@@ -287,7 +299,7 @@ export function generateTimetable({
         for (let i = 0; i < shuffledSubjects.length; i++) {
           const count = evenPerSubject + (i < extra ? 1 : 0)
           for (let j = 0; j < count; j++) {
-            list.push(shuffledSubjects[i])
+            list.push({ subject: shuffledSubjects[i], teacherId: '' })
           }
         }
       }
@@ -295,22 +307,21 @@ export function generateTimetable({
       if (list.length > slotsLength) {
         list.length = slotsLength
       }
-      shuffleArray(list)
-      return list
+      return patternizeRequests(list)
     }
 
     // Even distribution
     const list = []
+    if (shuffledSubjects.length === 0) return list
     const slotsPerSubject = Math.floor(slotsLength / shuffledSubjects.length)
     const remainder = slotsLength % shuffledSubjects.length
     for (let i = 0; i < shuffledSubjects.length; i++) {
       const count = slotsPerSubject + (i < remainder ? 1 : 0)
       for (let j = 0; j < count; j++) {
-        list.push(shuffledSubjects[i])
+        list.push({ subject: shuffledSubjects[i], teacherId: '' })
       }
     }
-    shuffleArray(list)
-    return list
+    return patternizeRequests(list)
   }
 
   // Generate entries for a single class (one attempt)
@@ -331,20 +342,27 @@ export function generateTimetable({
       localTeacherDailyCount[tid] = { ...teacherDailyCount[tid] }
     }
 
-    for (const subject of subjectList) {
+    const patternWidth = new Set(subjectList.map(request => `${request.subject.id}-${request.teacherId || ''}`)).size || 1
+    const patternPeriods = Math.max(1, classTeachingPeriods.length)
+    const patternDays = Math.max(1, Math.ceil(slots.length / patternPeriods))
+
+    for (const [requestIndex, request] of subjectList.entries()) {
+      const subject = request.subject
       let bestSlot = null
       let bestTeacher = null
       let bestScore = -1
 
       for (const slot of slots) {
         const slotKey = `${slot.day}-${slot.periodId}`
+        const conflictKey = makeConflictSlotKey(slot.day, slot.start, slot.end, slot.periodId)
         if (filledSlotsSet.has(slotKey)) continue
 
         const candidateTeachers = availableTeachers.filter(t =>
           t.subjects.includes(subject.id) &&
+          (!request.teacherId || t.id === request.teacherId) &&
           !isTeacherOffDay(t, slot.day, teacherDayOff) &&
           !isTeacherOffPeriod(t, slot.day, slot.periodId, teacherTimeOff) &&
-          !(localTeacherBusy[slotKey] || new Set()).has(t.id) &&
+          !(localTeacherBusy[conflictKey] || new Set()).has(t.id) &&
           (localTeacherDailyCount[t.id]?.[slot.day] || 0) < (t.maxPeriods || 6) &&
           checkTeacherConstraints(t, slot.day, slot.periodId, classEntries, localTeacherDailyCount, classTeachingPeriods, teacherConstraints)
         )
@@ -353,7 +371,8 @@ export function generateTimetable({
           if (autoRelax) {
             const relaxed = availableTeachers.filter(t =>
               t.subjects.includes(subject.id) &&
-              !(localTeacherBusy[slotKey] || new Set()).has(t.id)
+              (!request.teacherId || t.id === request.teacherId) &&
+              !(localTeacherBusy[conflictKey] || new Set()).has(t.id)
             )
             if (relaxed.length === 0) continue
             candidateTeachers.length = 0
@@ -364,7 +383,13 @@ export function generateTimetable({
         if (!checkCardRelationships(subject, slot, classEntries, cardRelationships, cls)) continue
 
         // Score this slot: prefer days where subject hasn't appeared yet
-        let score = 1
+        const patternRound = Math.floor(requestIndex / patternWidth)
+        const patternColumn = requestIndex % patternWidth
+        const preferredDay = patternRound % patternDays
+        const preferredPeriod = (patternColumn + Math.floor(patternRound / patternDays)) % patternPeriods
+        const preferredSlotIndex = Math.min(slots.length - 1, preferredDay * patternPeriods + preferredPeriod)
+        const slotIndex = slots.indexOf(slot)
+        let score = 100 - Math.abs(slotIndex - preferredSlotIndex)
         if (avoidSameSubjectDaily) {
           const sameSubjectOnDay = classEntries.some(
             e => e.day === slot.day && e.subjectId === subject.id
@@ -387,12 +412,13 @@ export function generateTimetable({
 
       if (bestSlot && bestTeacher) {
         const slotKey = `${bestSlot.day}-${bestSlot.periodId}`
+        const conflictKey = makeConflictSlotKey(bestSlot.day, bestSlot.start, bestSlot.end, bestSlot.periodId)
 
         const candidateRooms = rooms.filter(r =>
-          !(localRoomBusy[slotKey] || new Set()).has(r.id)
+          !(localRoomBusy[conflictKey] || new Set()).has(r.id)
         )
         const room = candidateRooms.length > 0
-          ? candidateRooms[Math.floor(Math.random() * candidateRooms.length)]
+          ? candidateRooms[0]
           : null
 
         const entry = {
@@ -420,17 +446,17 @@ export function generateTimetable({
             availableTeachers.some(t =>
               t.subjects.includes(s.id) &&
               !isTeacherOffDay(t, bestSlot.day, teacherDayOff) &&
-              !(localTeacherBusy[slotKey] || new Set()).has(t.id) &&
+              !(localTeacherBusy[conflictKey] || new Set()).has(t.id) &&
               (localTeacherDailyCount[t.id]?.[bestSlot.day] || 0) < (t.maxPeriods || 6)
             )
           )
 
           if (secondarySubjectCandidates.length > 0) {
-            const secondarySubject = secondarySubjectCandidates[Math.floor(Math.random() * secondarySubjectCandidates.length)]
+            const secondarySubject = secondarySubjectCandidates[0]
             const secondaryTeacherCandidates = availableTeachers.filter(t =>
               t.subjects.includes(secondarySubject.id) &&
               !isTeacherOffDay(t, bestSlot.day, teacherDayOff) &&
-              !(localTeacherBusy[slotKey] || new Set()).has(t.id) &&
+              !(localTeacherBusy[conflictKey] || new Set()).has(t.id) &&
               (localTeacherDailyCount[t.id]?.[bestSlot.day] || 0) < (t.maxPeriods || 6)
             )
             if (secondaryTeacherCandidates.length > 0) {
@@ -442,8 +468,8 @@ export function generateTimetable({
               entry.secondaryTeacherId = secondaryTeacher.id
 
               // Track secondary teacher occupancy
-              if (!localTeacherBusy[slotKey]) localTeacherBusy[slotKey] = new Set()
-              localTeacherBusy[slotKey].add(secondaryTeacher.id)
+              if (!localTeacherBusy[conflictKey]) localTeacherBusy[conflictKey] = new Set()
+              localTeacherBusy[conflictKey].add(secondaryTeacher.id)
               if (!localTeacherDailyCount[secondaryTeacher.id]) localTeacherDailyCount[secondaryTeacher.id] = {}
               localTeacherDailyCount[secondaryTeacher.id][bestSlot.day] =
                 (localTeacherDailyCount[secondaryTeacher.id][bestSlot.day] || 0) + 1
@@ -455,11 +481,11 @@ export function generateTimetable({
 
         filledSlotsSet.add(slotKey)
 
-        if (!localTeacherBusy[slotKey]) localTeacherBusy[slotKey] = new Set()
-        localTeacherBusy[slotKey].add(bestTeacher.id)
+        if (!localTeacherBusy[conflictKey]) localTeacherBusy[conflictKey] = new Set()
+        localTeacherBusy[conflictKey].add(bestTeacher.id)
         if (room) {
-          if (!localRoomBusy[slotKey]) localRoomBusy[slotKey] = new Set()
-          localRoomBusy[slotKey].add(room.id)
+          if (!localRoomBusy[conflictKey]) localRoomBusy[conflictKey] = new Set()
+          localRoomBusy[conflictKey].add(room.id)
         }
         if (!localTeacherDailyCount[bestTeacher.id]) localTeacherDailyCount[bestTeacher.id] = {}
         localTeacherDailyCount[bestTeacher.id][bestSlot.day] =
@@ -498,7 +524,7 @@ export function generateTimetable({
     const slots = []
     for (const day of classDays) {
       for (const period of classTeachingPeriods) {
-        slots.push({ day, periodId: period.id })
+        slots.push({ day, periodId: period.id, start: period.start, end: period.end })
       }
     }
 
@@ -521,18 +547,20 @@ export function generateTimetable({
     // Commit the best result to global occupancy
     for (const entry of bestResult.classEntries) {
       entries.push(entry)
-      const slotKey = `${entry.day}-${entry.periodId}`
-      if (!teacherBusy[slotKey]) teacherBusy[slotKey] = new Set()
-      teacherBusy[slotKey].add(entry.teacherId)
+      const schedule = getScheduleForClassFn?.(entry.classId)
+      const periodTime = getPeriodTime(schedule, entry.periodId, periods)
+      const conflictKey = makeConflictSlotKey(entry.day, periodTime?.start, periodTime?.end, entry.periodId)
+      if (!teacherBusy[conflictKey]) teacherBusy[conflictKey] = new Set()
+      teacherBusy[conflictKey].add(entry.teacherId)
       if (entry.secondaryTeacherId) {
-        teacherBusy[slotKey].add(entry.secondaryTeacherId)
+        teacherBusy[conflictKey].add(entry.secondaryTeacherId)
         if (!teacherDailyCount[entry.secondaryTeacherId]) teacherDailyCount[entry.secondaryTeacherId] = {}
         teacherDailyCount[entry.secondaryTeacherId][entry.day] =
           (teacherDailyCount[entry.secondaryTeacherId][entry.day] || 0) + 1
       }
       if (entry.roomId) {
-        if (!roomBusy[slotKey]) roomBusy[slotKey] = new Set()
-        roomBusy[slotKey].add(entry.roomId)
+        if (!roomBusy[conflictKey]) roomBusy[conflictKey] = new Set()
+        roomBusy[conflictKey].add(entry.roomId)
       }
       if (!teacherDailyCount[entry.teacherId]) teacherDailyCount[entry.teacherId] = {}
       teacherDailyCount[entry.teacherId][entry.day] =

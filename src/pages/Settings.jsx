@@ -6,6 +6,7 @@ import { sendRegistration, trackEvent } from '../utils/telemetry.js'
 import BackupRestore from './BackupRestore.jsx'
 import { ChangelogList } from '../components/WhatsNew.jsx'
 import { APP_VERSION } from '../data/changelog.js'
+import LegalDocuments from './LegalDocuments.jsx'
 
 const ALL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -43,11 +44,20 @@ const SUB_TABS = {
     { id: 'backup', label: 'Backup' },
     { id: 'restore', label: 'Restore' },
   ],
+  legal: [
+    { id: 'terms', label: 'Terms of Service' },
+    { id: 'privacy', label: 'Privacy Policy' },
+    { id: 'dpa', label: 'DPA' },
+    { id: 'refund', label: 'Refund Policy' },
+    { id: 'msa', label: 'MSA' },
+    { id: 'cyberInsurance', label: 'Cyber Insurance' },
+  ],
   about: [
     { id: 'about', label: 'About' },
     { id: 'customization', label: 'Customization' },
     { id: 'limits', label: 'Limits' },
     { id: 'privacy', label: 'Privacy' },
+    { id: 'updates', label: 'Updates' },
     { id: 'changelog', label: 'Changelog' },
   ],
 }
@@ -57,6 +67,7 @@ const DEFAULT_SUB_TAB = {
   appearance: 'colors',
   advanced: 'lunch',
   data: 'backup',
+  legal: 'terms',
   about: 'about',
 }
 
@@ -540,6 +551,7 @@ export default function Settings({ searchQuery }) {
             { id: 'appearance', label: 'Appearance' },
             { id: 'advanced', label: 'Advanced' },
             { id: 'data', label: 'Data' },
+            { id: 'legal', label: 'Legal' },
             { id: 'about', label: 'About' },
           ]}
           active={settingsTab}
@@ -1126,6 +1138,10 @@ export default function Settings({ searchQuery }) {
       )}
 
       {/* About Tab */}
+      {settingsTab === 'legal' && (
+        <LegalDocuments documentId={subTab} />
+      )}
+
       {settingsTab === 'about' && (
         <>
           {subTab === 'about' && (
@@ -1580,6 +1596,104 @@ export default function Settings({ searchQuery }) {
               </p>
             </div>
           </Card>
+            </>
+          )}
+
+          {subTab === 'updates' && (
+            <>
+              <Card className="p-6 mb-6">
+                <h3 className="text-sm font-bold text-slate-700 mb-4">Automatic Updates</h3>
+                <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                  Shikola can automatically check for, download, and install updates. When a new version is
+                  available, it is downloaded in the background. You can choose to install it immediately, on
+                  quit, or let the app restart automatically.
+                </p>
+
+                <div className="space-y-4">
+                  <div className={`rounded-lg border-2 p-4 transition-all ${state.autoUpdate?.enabled !== false ? 'border-brand-600 bg-brand-50' : 'border-slate-200'}`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3 flex-1">
+                        <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">Download updates automatically</p>
+                          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                            Check for new releases periodically and download installers in the background.
+                            Disabling this means you'll only see updates when you manually check.
+                          </p>
+                        </div>
+                      </div>
+                      <Toggle
+                        checked={state.autoUpdate?.enabled !== false}
+                        onChange={(v) => {
+                          dispatch({ type: 'SET_AUTO_UPDATE', payload: { enabled: v } })
+                          sounds.click()
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={`rounded-lg border-2 p-4 transition-all ${state.autoUpdate?.installOnQuit !== false ? 'border-brand-600 bg-brand-50' : 'border-slate-200'}`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3 flex-1">
+                        <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 01-2 2v4a2 2 0 012 2h12a2 2 0 012-2v-4a2 2 0 01-2-2m-2-4h.01M17 16h.01" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">Install in the background when I quit</p>
+                          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                            Downloaded updates are installed automatically the next time you close the app,
+                            so you are never interrupted while working.
+                          </p>
+                        </div>
+                      </div>
+                      <Toggle
+                        checked={state.autoUpdate?.installOnQuit !== false}
+                        onChange={(v) => {
+                          dispatch({ type: 'SET_AUTO_UPDATE', payload: { installOnQuit: v } })
+                          sounds.click()
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={`rounded-lg border-2 p-4 transition-all ${state.autoUpdate?.autoInstall ? 'border-brand-600 bg-brand-50' : 'border-slate-200'}`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3 flex-1">
+                        <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">Restart and install automatically</p>
+                          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                            After an update is downloaded, restart the app and install it without asking.
+                            You'll see a 60-second countdown before the restart so you can postpone it.
+                          </p>
+                        </div>
+                      </div>
+                      <Toggle
+                        checked={state.autoUpdate?.autoInstall || false}
+                        onChange={(v) => {
+                          dispatch({ type: 'SET_AUTO_UPDATE', payload: { autoInstall: v } })
+                          sounds.click()
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                    <p className="text-xs font-medium text-slate-700 mb-1">Current Version</p>
+                    <p className="text-sm text-slate-600">Shikola Timetable Creator v{APP_VERSION} "{APP_CODENAME}"</p>
+                  </div>
+                </div>
+              </Card>
             </>
           )}
 

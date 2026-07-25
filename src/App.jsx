@@ -166,6 +166,7 @@ export default function App() {
   const [updateStatus, setUpdateStatus] = useState(null)
   const [installInfo, setInstallInfo] = useState(null)
   const [autoUpdateInfo, setAutoUpdateInfo] = useState(null)
+  const [autoInstallCountdown, setAutoInstallCountdown] = useState(null)
   const [downloadProgress, setDownloadProgress] = useState(null)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false)
@@ -243,6 +244,24 @@ export default function App() {
     }
   }, [state.telemetry?.analyticsEnabled])
 
+  // Sync auto-update preferences with main process on load
+  useEffect(() => {
+    if (window.electronAPI?.updater?.getConfig) {
+      window.electronAPI.updater.getConfig().then((config) => {
+        if (config) {
+          dispatch({ type: 'SET_AUTO_UPDATE', payload: config })
+        }
+      }).catch(() => {})
+    }
+  }, [])
+
+  // Send auto-update preference changes to main process
+  useEffect(() => {
+    if (window.electronAPI?.updater?.setConfig) {
+      window.electronAPI.updater.setConfig(state.autoUpdate).catch(() => {})
+    }
+  }, [state.autoUpdate])
+
   // Auto-updater: listen for background update events from Electron
   useEffect(() => {
     const updater = window.electronAPI?.updater
@@ -267,10 +286,34 @@ export default function App() {
         trackEvent('update_downloaded', { version: info.version })
       }
     })
+    updater.onAutoInstallPending((info) => {
+      setDownloadProgress(null)
+      setAutoUpdateInfo({
+        version: info.version,
+        releaseNotes: info.releaseNotes,
+      })
+      setAutoInstallCountdown(info.secondsRemaining || 60)
+    })
     updater.onError(() => {
       setDownloadProgress(null)
+      setAutoInstallCountdown(null)
     })
   }, [state.telemetry?.analyticsEnabled])
+
+  // Auto-install countdown: notify user before automatic restart
+  useEffect(() => {
+    if (autoInstallCountdown === null || autoInstallCountdown <= 0) return
+    const timer = setInterval(() => {
+      setAutoInstallCountdown(prev => {
+        if (prev === null || prev <= 1) {
+          clearInterval(timer)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [autoInstallCountdown])
 
   // Telemetry: send launch event and set up crash handling based on consent
   useEffect(() => {
@@ -809,6 +852,47 @@ export default function App() {
         </div>
       )}
 
+      {/* Auto-install countdown toast */}
+      {autoInstallCountdown !== null && (
+        <div className="fixed bottom-4 right-4 z-[200] animate-fade-in">
+          <div className="bg-white rounded-lg shadow-xl border border-slate-200 px-4 py-3 w-80">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-slate-700">Restarting to update...</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Shikola will restart and install v{autoUpdateInfo?.version || 'the latest update'} in {autoInstallCountdown}s.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  window.electronAPI?.updater?.installNow()
+                  setAutoInstallCountdown(null)
+                }}
+                className="flex-1 px-3 py-2 bg-brand-600 text-white text-xs font-medium rounded-lg hover:bg-brand-700 transition-colors"
+              >
+                Restart now
+              </button>
+              <button
+                onClick={() => {
+                  window.electronAPI?.updater?.installOnQuit()
+                  setAutoInstallCountdown(null)
+                }}
+                className="flex-1 px-3 py-2 bg-slate-100 text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-200 transition-colors"
+              >
+                Install later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Auto-update ready notification toast */}
       {autoUpdateInfo && (
         <div className="fixed bottom-4 right-4 z-[200] animate-fade-in">
@@ -821,7 +905,11 @@ export default function App() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-slate-700">Update ready to install</p>
-                <p className="text-xs text-slate-500 mt-0.5">v{autoUpdateInfo.version} has been downloaded. Restart to apply.</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {state.autoUpdate?.installOnQuit !== false
+                    ? `v${autoUpdateInfo.version} has been downloaded and will be installed automatically when you quit.`
+                    : `v${autoUpdateInfo.version} has been downloaded. Restart to apply.`}
+                </p>
               </div>
               <button
                 onClick={() => setAutoUpdateInfo(null)}
@@ -840,17 +928,19 @@ export default function App() {
                 }}
                 className="flex-1 px-3 py-2 bg-brand-600 text-white text-xs font-medium rounded-lg hover:bg-brand-700 transition-colors"
               >
-                Install now & restart
+                Restart now
               </button>
-              <button
-                onClick={() => {
-                  window.electronAPI?.updater?.installOnQuit()
-                  setAutoUpdateInfo(null)
-                }}
-                className="flex-1 px-3 py-2 bg-slate-100 text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-200 transition-colors"
-              >
-                Install on quit
-              </button>
+              {state.autoUpdate?.installOnQuit === false && (
+                <button
+                  onClick={() => {
+                    window.electronAPI?.updater?.installOnQuit()
+                    setAutoUpdateInfo(null)
+                  }}
+                  className="flex-1 px-3 py-2 bg-slate-100 text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-200 transition-colors"
+                >
+                  Install on quit
+                </button>
+              )}
             </div>
           </div>
         </div>

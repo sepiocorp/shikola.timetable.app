@@ -75,6 +75,12 @@ const defaultData = {
     registrationConsent: true,
     consentTimestamp: null,
   },
+  autoUpdate: {
+    enabled: true,
+    autoInstall: false,
+    installOnQuit: true,
+    checkIntervalMinutes: 60,
+  },
 }
 
 function deepMergeDefaults(defaults, saved) {

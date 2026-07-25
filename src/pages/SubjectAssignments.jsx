@@ -1,5 +1,5 @@
 import React, { useState, useMemo, forwardRef, useImperativeHandle } from 'react'
-import { useApp } from '../store/AppContext.jsx'
+import { useApp, getScheduleForClass } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
 import { Button, Input, Card, PageHeader, Modal, EmptyState, Badge, Tabs } from '../components/UI.jsx'
 
@@ -33,14 +33,21 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
   }
 
   const handleSave = () => {
-    if (!form.classId || !form.subjectId) {
+    const periods = Number(form.periodsPerWeek)
+    const selectedTeacher = form.teacherId ? state.teachers.find(t => t.id === form.teacherId) : null
+    if (!form.classId || !form.subjectId || !Number.isInteger(periods) || periods < 1) {
       sounds.error()
       return
     }
+    if (selectedTeacher && !selectedTeacher.subjects?.includes(form.subjectId)) {
+      sounds.error()
+      return
+    }
+    const payload = { ...form, periodsPerWeek: periods }
     if (editing) {
-      dispatch({ type: 'UPDATE_SUBJECT_ASSIGNMENT', payload: { ...editing, ...form } })
+      dispatch({ type: 'UPDATE_SUBJECT_ASSIGNMENT', payload: { ...editing, ...payload } })
     } else {
-      dispatch({ type: 'ADD_SUBJECT_ASSIGNMENT', payload: form })
+      dispatch({ type: 'ADD_SUBJECT_ASSIGNMENT', payload })
     }
     sounds.add()
     setModalOpen(false)
@@ -66,16 +73,23 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
       .reduce((sum, a) => sum + (a.periodsPerWeek || 0), 0)
   }
 
-  const teachingPeriods = state.settings.periods.filter(p => !p.isBreak)
-  const totalSlotsPerClass = state.settings.days.length * teachingPeriods.length
+  const getTotalSlotsForClass = (classId) => {
+    const schedule = getScheduleForClass(state, classId)
+    return schedule.days.length * schedule.periods.filter(p => !p.isBreak).length
+  }
+
+  const totalSlotsPerClass = selectedClassId
+    ? getTotalSlotsForClass(selectedClassId)
+    : state.settings.days.length * state.settings.periods.filter(p => !p.isBreak).length
 
   const allAssignmentsByClass = useMemo(() => {
     return state.classes.map(cls => ({
       cls,
       assignments: state.subjectAssignments.filter(a => a.classId === cls.id),
       total: totalPeriodsForClass(cls.id),
+      slots: getTotalSlotsForClass(cls.id),
     }))
-  }, [state.classes, state.subjectAssignments])
+  }, [state.classes, state.subjectAssignments, state.sections, state.settings])
 
   return (
     <div className="p-4 md:p-8">
@@ -164,8 +178,8 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200">
                         <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Subject</th>
-                        <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Teacher</th>
-                        <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Periods/Week</th>
+                        <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Assigned Teacher</th>
+                        <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Required Periods/Week</th>
                         <th className="text-right text-xs font-bold text-slate-600 px-4 py-3">Actions</th>
                       </tr>
                     </thead>
@@ -219,7 +233,7 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
                   </tr>
                 </thead>
                 <tbody>
-                  {allAssignmentsByClass.map(({ cls, assignments, total }) => (
+                  {allAssignmentsByClass.map(({ cls, assignments, total, slots }) => (
                     <tr key={cls.id} className="border-b border-slate-100">
                       <td className="px-4 py-3 text-sm font-semibold text-slate-800 sticky left-0 bg-white">{cls.name}</td>
                       {state.subjects.map(s => {
@@ -231,10 +245,10 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
                         )
                       })}
                       <td className="px-4 py-3 text-center">
-                        <span className={`text-sm font-bold ${total > totalSlotsPerClass ? 'text-red-600' : 'text-slate-800'}`}>
+                        <span className={`text-sm font-bold ${total > slots ? 'text-red-600' : 'text-slate-800'}`}>
                           {total}
                         </span>
-                        <span className="text-xs text-slate-400"> / {totalSlotsPerClass}</span>
+                        <span className="text-xs text-slate-400"> / {slots}</span>
                       </td>
                     </tr>
                   ))}
@@ -294,9 +308,12 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
-              <p className="text-xs text-slate-400 mt-1">Leave empty to let the generator pick any qualified teacher.</p>
+              <p className="text-xs text-slate-400 mt-1">Choose a teacher to require that teacher for every period of this subject in this class. Leave empty for automatic selection.</p>
             </div>
           )}
+          <div className="bg-brand-50 border border-brand-200 rounded-lg p-3 text-xs text-brand-700">
+            These assignments are exact weekly requirements for this class. The generator will schedule only the periods listed here and will respect the selected class section's morning or afternoon timetable.
+          </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
             <Button onClick={handleSave}>{editing ? 'Update' : 'Add'}</Button>
