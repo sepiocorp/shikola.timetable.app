@@ -2,6 +2,7 @@ const { app, BrowserWindow, Menu, ipcMain, crashReporter } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const telemetry = require('./telemetry')
+const { validateEmbeddedLicense, activatedKeys } = require('./licenses')
 
 const isDev = process.env.VITE_DEV === 'true'
 
@@ -352,6 +353,112 @@ ipcMain.handle('app:checkShikolaManagementInstalled', async () => {
     console.error('[App] Failed to check Shikola Management System installation:', err.message)
     return { installed: false }
   }
+})
+
+// --- License key validation (offline, embedded keys) ---
+
+function getLicenseCachePath() {
+  return path.join(app.getPath('userData'), 'license-cache.json')
+}
+
+function readLicenseCache() {
+  try {
+    const cachePath = getLicenseCachePath()
+    if (fs.existsSync(cachePath)) {
+      return JSON.parse(fs.readFileSync(cachePath, 'utf-8'))
+    }
+  } catch (err) {
+    console.error('[License] Failed to read cache:', err.message)
+  }
+  return null
+}
+
+function writeLicenseCache(cache) {
+  try {
+    fs.writeFileSync(getLicenseCachePath(), JSON.stringify(cache, null, 2))
+  } catch (err) {
+    console.error('[License] Failed to write cache:', err.message)
+  }
+}
+
+function clearLicenseCache() {
+  try {
+    const cachePath = getLicenseCachePath()
+    if (fs.existsSync(cachePath)) {
+      fs.unlinkSync(cachePath)
+    }
+  } catch (err) {
+    console.error('[License] Failed to clear cache:', err.message)
+  }
+}
+
+ipcMain.handle('license:validate', async (_event, licenseKey) => {
+  if (!licenseKey || typeof licenseKey !== 'string') {
+    return { valid: false, error: 'No license key provided.' }
+  }
+
+  const trimmedKey = licenseKey.trim()
+
+  // Validate against embedded license list
+  const result = validateEmbeddedLicense(trimmedKey)
+
+  if (result.valid) {
+    const cacheEntry = {
+      key: result.key,
+      valid: true,
+      validatedAt: result.validatedAt,
+      plan: result.plan,
+      expiresAt: result.expiresAt,
+      schoolName: result.schoolName,
+    }
+    writeLicenseCache(cacheEntry)
+    console.log(`[License] Validated successfully: ${result.schoolName}`)
+    return { valid: true, ...cacheEntry }
+  }
+
+  // Invalid key — clear any stale cache
+  clearLicenseCache()
+  return { valid: false, error: result.error }
+})
+
+ipcMain.handle('license:getCached', async () => {
+  const cached = readLicenseCache()
+  if (!cached) return { valid: false }
+
+  // Re-mark this key as activated (it's already been used on this machine)
+  // This prevents it from being entered again on this same machine
+  activatedKeys.add(cached.key)
+
+  // Re-validate against embedded list to check expiry
+  const result = validateEmbeddedLicense(cached.key)
+  if (result.valid) {
+    return { valid: true, ...cached, plan: result.plan, expiresAt: result.expiresAt, schoolName: result.schoolName }
+  }
+
+  // If the key was blocked because it's already activated, that's expected for a cached key
+  // Check if the key exists in the embedded list and is not expired
+  const { LICENSES } = require('./licenses')
+  const entry = LICENSES.find(l => l.key === cached.key)
+  if (entry) {
+    const expiry = new Date(entry.expiresAt)
+    if (expiry >= new Date()) {
+      // Key is still valid — return cached info
+      return { valid: true, ...cached, plan: entry.plan, expiresAt: entry.expiresAt, schoolName: entry.schoolName }
+    }
+  }
+
+  // Cached key is no longer valid (expired or removed)
+  clearLicenseCache()
+  return { valid: false }
+})
+
+ipcMain.handle('license:clear', async () => {
+  const cached = readLicenseCache()
+  if (cached?.key) {
+    activatedKeys.delete(cached.key)
+  }
+  clearLicenseCache()
+  return { success: true }
 })
 
 // --- Auto-updater IPC handlers ---

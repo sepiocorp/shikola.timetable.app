@@ -68,6 +68,14 @@ const defaultData = {
   storageWarning: null,
   appLocked: false,
   lockReason: null,
+  license: {
+    key: null,
+    valid: false,
+    plan: null,
+    expiresAt: null,
+    schoolName: null,
+    validatedAt: null,
+  },
   telemetry: {
     registered: true,
     analyticsEnabled: true,

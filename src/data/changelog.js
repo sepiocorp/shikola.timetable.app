@@ -1,7 +1,22 @@
-export const APP_VERSION = '1.2.0'
-export const APP_CODENAME = 'Sunshine'
+export const APP_VERSION = '1.3.0'
+export const APP_CODENAME = 'Aurora'
 
 export const CHANGELOG = [
+  {
+    version: '1.3.0',
+    codename: 'Aurora',
+    date: '2026-07-27',
+    title: 'What\'s New in v1.3.0',
+    changes: [
+      { type: 'feature', text: 'Offline license key activation — government schools in Lusaka, Zambia can unlock the app with embedded single-use license keys' },
+      { type: 'feature', text: 'Lock screen now includes a license key entry option to bypass entity and storage limits' },
+      { type: 'feature', text: 'License management in Settings — activate, view, and clear license keys with plan and expiry details' },
+      { type: 'feature', text: 'Max Periods per Day setting in Subject Assignments — control how many times a subject appears on any single day' },
+      { type: 'improvement', text: 'Timetable generator now enforces teacher-to-class assignments, ensuring teachers are only scheduled for classes they are assigned to' },
+      { type: 'improvement', text: 'Legal documents cleaned up — removed draft template warnings for finalized documents' },
+      { type: 'fix', text: 'Updated version badge in Documentation page to reflect current app version' },
+    ],
+  },
   {
     version: '1.2.0',
     codename: 'Sunshine',

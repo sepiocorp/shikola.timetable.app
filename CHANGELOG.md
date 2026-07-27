@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ---
 
+## [1.3.0] — Aurora — 2026-07-27
+
+### Added
+- Offline license key activation — government schools in Lusaka, Zambia can unlock the app with embedded single-use license keys
+- Lock screen now includes a license key entry option to bypass entity and storage limits
+- License management in Settings — activate, view, and clear license keys with plan and expiry details
+- Max Periods per Day setting in Subject Assignments — control how many times a subject appears on any single day
+
+### Changed
+- Timetable generator now enforces teacher-to-class assignments, ensuring teachers are only scheduled for classes they are assigned to
+- Legal documents cleaned up — removed draft template warnings for finalized documents
+
+### Fixed
+- Updated version badge in Documentation page to reflect current app version
+
+---
+
 ## [1.2.0] — Sunshine — 2026-07-25
 
 ### Added

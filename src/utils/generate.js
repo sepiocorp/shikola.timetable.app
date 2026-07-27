@@ -32,6 +32,11 @@ function pickLeastBusyTeacher(teachers, teacherDailyCount) {
   })
 }
 
+function isTeacherAssignedToClass(teacher, classId) {
+  if (!teacher.classes || teacher.classes.length === 0) return true
+  return teacher.classes.includes(classId)
+}
+
 function isTeacherOffDay(teacher, day, teacherDayOff) {
   const offDays = teacherDayOff?.[teacher.id]
   if (!offDays) return false
@@ -238,7 +243,7 @@ export function generateTimetable({
     for (const request of requests) {
       const key = `${request.subject.id}-${request.teacherId || ''}`
       if (!groupMap.has(key)) {
-        const group = { subject: request.subject, teacherId: request.teacherId || '', count: 0 }
+        const group = { subject: request.subject, teacherId: request.teacherId || '', maxPerDay: request.maxPerDay || 0, count: 0 }
         groupMap.set(key, group)
         groups.push(group)
       }
@@ -250,7 +255,7 @@ export function generateTimetable({
     while (remaining > 0) {
       for (const group of groups) {
         if (group.count <= 0) continue
-        patterned.push({ subject: group.subject, teacherId: group.teacherId })
+        patterned.push({ subject: group.subject, teacherId: group.teacherId, maxPerDay: group.maxPerDay })
         group.count--
         remaining--
       }
@@ -269,13 +274,33 @@ export function generateTimetable({
 
     if (classAssignments.length > 0) {
       const list = []
+      const assignedSubjectIds = new Set()
       for (const assignment of classAssignments) {
         const subj = shuffledSubjects.find(s => s.id === assignment.subjectId)
         if (!subj) continue
+        assignedSubjectIds.add(assignment.subjectId)
         const periods = Math.max(0, Number(assignment.periodsPerWeek) || 0)
         for (let i = 0; i < periods; i++) {
-          list.push({ subject: subj, teacherId: assignment.teacherId || '' })
+          list.push({ subject: subj, teacherId: assignment.teacherId || '', maxPerDay: assignment.maxPerDay || 0 })
         }
+      }
+      // Fill remaining slots with even distribution of subjects not in assignments
+      if (list.length < slotsLength && shuffledSubjects.length > 0) {
+        const unassignedSubjects = shuffledSubjects.filter(s => !assignedSubjectIds.has(s.id))
+        const fillSubjects = unassignedSubjects.length > 0 ? unassignedSubjects : shuffledSubjects
+        const remainder = slotsLength - list.length
+        const evenPerSubject = Math.floor(remainder / fillSubjects.length)
+        const extra = remainder % fillSubjects.length
+        for (let i = 0; i < fillSubjects.length; i++) {
+          const count = evenPerSubject + (i < extra ? 1 : 0)
+          for (let j = 0; j < count; j++) {
+            list.push({ subject: fillSubjects[i], teacherId: '', maxPerDay: 0 })
+          }
+        }
+      }
+      // Trim if over
+      if (list.length > slotsLength) {
+        list.length = slotsLength
       }
       return patternizeRequests(list)
     }
@@ -357,8 +382,17 @@ export function generateTimetable({
         const conflictKey = makeConflictSlotKey(slot.day, slot.start, slot.end, slot.periodId)
         if (filledSlotsSet.has(slotKey)) continue
 
+        // Enforce maxPerDay from subject assignment
+        if (request.maxPerDay && request.maxPerDay > 0) {
+          const sameSubjectOnDayCount = classEntries.filter(
+            e => e.day === slot.day && e.subjectId === subject.id
+          ).length
+          if (sameSubjectOnDayCount >= request.maxPerDay) continue
+        }
+
         const candidateTeachers = availableTeachers.filter(t =>
           t.subjects.includes(subject.id) &&
+          isTeacherAssignedToClass(t, cls.id) &&
           (!request.teacherId || t.id === request.teacherId) &&
           !isTeacherOffDay(t, slot.day, teacherDayOff) &&
           !isTeacherOffPeriod(t, slot.day, slot.periodId, teacherTimeOff) &&
@@ -371,6 +405,7 @@ export function generateTimetable({
           if (autoRelax) {
             const relaxed = availableTeachers.filter(t =>
               t.subjects.includes(subject.id) &&
+              isTeacherAssignedToClass(t, cls.id) &&
               (!request.teacherId || t.id === request.teacherId) &&
               !(localTeacherBusy[conflictKey] || new Set()).has(t.id)
             )
@@ -445,6 +480,7 @@ export function generateTimetable({
             s.id !== subject.id &&
             availableTeachers.some(t =>
               t.subjects.includes(s.id) &&
+              isTeacherAssignedToClass(t, secondaryClassId) &&
               !isTeacherOffDay(t, bestSlot.day, teacherDayOff) &&
               !(localTeacherBusy[conflictKey] || new Set()).has(t.id) &&
               (localTeacherDailyCount[t.id]?.[bestSlot.day] || 0) < (t.maxPeriods || 6)
@@ -455,6 +491,7 @@ export function generateTimetable({
             const secondarySubject = secondarySubjectCandidates[0]
             const secondaryTeacherCandidates = availableTeachers.filter(t =>
               t.subjects.includes(secondarySubject.id) &&
+              isTeacherAssignedToClass(t, secondaryClassId) &&
               !isTeacherOffDay(t, bestSlot.day, teacherDayOff) &&
               !(localTeacherBusy[conflictKey] || new Set()).has(t.id) &&
               (localTeacherDailyCount[t.id]?.[bestSlot.day] || 0) < (t.maxPeriods || 6)

@@ -5,7 +5,7 @@ import { Button, Input, Select, Card, PageHeader, Modal, Toggle, Badge, Tabs, Sk
 import { sendRegistration, trackEvent } from '../utils/telemetry.js'
 import BackupRestore from './BackupRestore.jsx'
 import { ChangelogList } from '../components/WhatsNew.jsx'
-import { APP_VERSION } from '../data/changelog.js'
+import { APP_VERSION, APP_CODENAME } from '../data/changelog.js'
 import LegalDocuments from './LegalDocuments.jsx'
 
 const ALL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -215,7 +215,7 @@ function CustomFieldForm({ onAdd, state }) {
 }
 
 export default function Settings({ searchQuery }) {
-  const { state, dispatch, entityCount, entityLimit } = useApp()
+  const { state, dispatch, entityCount, entityLimit, validateLicense, clearLicense } = useApp()
   const [loading, setLoading] = useState(false)
 
   const [schoolForm, setSchoolForm] = useState(state.school || {})
@@ -233,6 +233,10 @@ export default function Settings({ searchQuery }) {
   const [sectionForm, setSectionForm] = useState({ name: '', session: 'full', days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], periods: [] })
   const [sectionNumPeriods, setSectionNumPeriods] = useState(8)
   const [storageLimitModal, setStorageLimitModal] = useState(false)
+  const [licenseKeyInput, setLicenseKeyInput] = useState('')
+  const [licenseValidating, setLicenseValidating] = useState(false)
+  const [licenseError, setLicenseError] = useState(null)
+  const [licenseSuccess, setLicenseSuccess] = useState(null)
 
   const handleSchoolSave = () => {
     dispatch({ type: 'SET_SCHOOL', payload: schoolForm })
@@ -1404,6 +1408,80 @@ export default function Settings({ searchQuery }) {
               The free tier has limits on entities and storage. To remove these restrictions, choose one of the options below:
             </p>
             <div className="space-y-3">
+              {/* License Key */}
+              <div className={`flex items-start gap-3 p-4 rounded-lg border ${state.license?.valid ? 'bg-green-50 border-green-200' : 'bg-brand-50 border-brand-200'}`}>
+                <svg className="w-5 h-5 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-700">License Key</p>
+                  {state.license?.valid ? (
+                    <>
+                      <p className="text-xs text-green-700 mt-1">
+                        Your license is active{state.license.plan ? ` (${state.license.plan})` : ''}{state.license.schoolName ? ` — ${state.license.schoolName}` : ''}.
+                      </p>
+                      {state.license.expiresAt && (
+                        <p className="text-xs text-slate-500 mt-0.5">Expires: {new Date(state.license.expiresAt).toLocaleDateString()}</p>
+                      )}
+                      <button
+                        onClick={async () => { await clearLicense(); setLicenseSuccess(null); setLicenseError(null) }}
+                        className="inline-block mt-2 text-xs px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium"
+                      >
+                        Remove License
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs text-slate-500 mt-1">If you have a subscription, enter your license key to unlock unlimited access.</p>
+                      <div className="flex gap-2 mt-2">
+                        <input
+                          type="text"
+                          value={licenseKeyInput}
+                          onChange={(e) => { setLicenseKeyInput(e.target.value); setLicenseError(null); setLicenseSuccess(null) }}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && !licenseValidating && licenseKeyInput.trim()) {
+                            setLicenseValidating(true); setLicenseError(null); setLicenseSuccess(null)
+                            validateLicense(licenseKeyInput.trim()).then((result) => {
+                              if (result.valid) { setLicenseSuccess('License activated successfully!'); setLicenseKeyInput('') }
+                              else { setLicenseError(result.error || 'Invalid license key.') }
+                            }).catch(() => setLicenseError('Failed to validate license key.'))
+                              .finally(() => setLicenseValidating(false))
+                          } }}
+                          placeholder="XXXX-XXXX-XXXX-XXXX"
+                          disabled={licenseValidating}
+                          className="flex-1 px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono"
+                        />
+                        <button
+                          onClick={async () => {
+                            if (!licenseKeyInput.trim()) { setLicenseError('Please enter a license key.'); return }
+                            setLicenseValidating(true)
+                            setLicenseError(null)
+                            setLicenseSuccess(null)
+                            try {
+                              const result = await validateLicense(licenseKeyInput.trim())
+                              if (result.valid) {
+                                setLicenseSuccess('License activated successfully!')
+                                setLicenseKeyInput('')
+                              } else {
+                                setLicenseError(result.error || 'Invalid license key.')
+                              }
+                            } catch {
+                              setLicenseError('Failed to validate license key.')
+                            } finally {
+                              setLicenseValidating(false)
+                            }
+                          }}
+                          disabled={licenseValidating || !licenseKeyInput.trim()}
+                          className="text-xs px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                        >
+                          {licenseValidating ? 'Validating...' : 'Activate'}
+                        </button>
+                      </div>
+                      {licenseError && <p className="text-xs text-red-600 mt-1">{licenseError}</p>}
+                      {licenseSuccess && <p className="text-xs text-green-600 mt-1">{licenseSuccess}</p>}
+                    </>
+                  )}
+                </div>
+              </div>
               <div className="flex items-start gap-3 p-4 bg-brand-50 rounded-lg border border-brand-200">
                 <svg className="w-5 h-5 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

@@ -94,24 +94,13 @@ export default function LegalDocuments({ documentId }) {
 
   return (
     <>
-      <Card className="mb-4 border-amber-200 bg-amber-50 p-4">
-        <div className="flex items-start gap-3">
-          <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <div>
-            <p className="text-sm font-semibold text-amber-800">Draft template — legal review required</p>
-            <p className="mt-1 text-xs leading-relaxed text-amber-700">Replace every highlighted placeholder and have qualified counsel approve this document before relying on or publishing it.</p>
-          </div>
-        </div>
-      </Card>
+      
 
       <Card className="mb-6 overflow-hidden">
         <div className="border-b border-slate-200 bg-slate-50 px-6 py-5 sm:px-8">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-xl font-bold text-slate-800">{document.title}</h2>
-            <Badge color="amber">Template</Badge>
-          </div>
+            </div>
           <p className="mt-2 text-sm text-slate-500">{document.summary}</p>
           <p className="mt-3 text-xs text-slate-400">Effective date: 01 August 2026 · Last updated: 25 July 2026</p>
         </div>

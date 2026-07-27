@@ -1,8 +1,32 @@
-import React from 'react'
+import React, { useState } from 'react'
 
-export default function LockScreen({ lockReason }) {
+export default function LockScreen({ lockReason, validateLicense }) {
   const reason = lockReason || {}
   const message = reason.message || 'You have reached the limits of the Shikola Timetable Creator free tier.'
+
+  const [licenseKey, setLicenseKey] = useState('')
+  const [validating, setValidating] = useState(false)
+  const [licenseError, setLicenseError] = useState(null)
+  const [showLicenseInput, setShowLicenseInput] = useState(false)
+
+  const handleValidateLicense = async () => {
+    if (!licenseKey.trim()) {
+      setLicenseError('Please enter a license key.')
+      return
+    }
+    setValidating(true)
+    setLicenseError(null)
+    try {
+      const result = await validateLicense(licenseKey.trim())
+      if (!result.valid) {
+        setLicenseError(result.error || 'Invalid license key.')
+      }
+    } catch (err) {
+      setLicenseError('Failed to validate license key. Please try again.')
+    } finally {
+      setValidating(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-[9999] bg-slate-900/95 backdrop-blur-sm flex items-center justify-center p-4">
@@ -29,13 +53,66 @@ export default function LockScreen({ lockReason }) {
             To continue managing your school's timetable without limits, please choose one of the options below:
           </p>
 
+          {/* License Key Entry */}
+          {showLicenseInput && (
+            <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+              <label className="block text-xs font-semibold text-slate-700 mb-2">Enter your license key</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={licenseKey}
+                  onChange={(e) => { setLicenseKey(e.target.value); setLicenseError(null) }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !validating) handleValidateLicense() }}
+                  placeholder="XXXX-XXXX-XXXX-XXXX"
+                  disabled={validating}
+                  className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent font-mono"
+                />
+                <button
+                  onClick={handleValidateLicense}
+                  disabled={validating || !licenseKey.trim()}
+                  className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  {validating ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Validating...
+                    </span>
+                  ) : (
+                    'Unlock'
+                  )}
+                </button>
+              </div>
+              {licenseError && (
+                <p className="text-xs text-red-600 mt-2">{licenseError}</p>
+              )}
+              <p className="text-xs text-slate-500 mt-2">
+                Your license key was provided when you subscribed. Lost your key? Contact your school administrator or Shikola support.
+              </p>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="space-y-3">
+            {!showLicenseInput && (
+              <button
+                onClick={() => setShowLicenseInput(true)}
+                className="flex items-center justify-center gap-2 w-full px-4 py-4 bg-brand-600 text-white rounded-xl hover:bg-brand-700 transition-colors font-semibold text-sm shadow-md hover:shadow-lg"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
+                I have a license key
+              </button>
+            )}
+
             <a
               href="https://shikola.org"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full px-4 py-4 bg-brand-600 text-white rounded-xl hover:bg-brand-700 transition-colors font-semibold text-sm shadow-md hover:shadow-lg"
+              className="flex items-center justify-center gap-2 w-full px-4 py-4 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-semibold text-sm"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

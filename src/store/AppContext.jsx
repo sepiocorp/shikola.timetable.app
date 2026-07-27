@@ -347,6 +347,12 @@ function reducer(state, action) {
     case 'SET_APP_UNLOCKED':
       return { ...state, appLocked: false, lockReason: null }
 
+    case 'SET_LICENSE':
+      return { ...state, license: action.payload }
+
+    case 'CLEAR_LICENSE':
+      return { ...state, license: { key: null, valid: false, plan: null, expiresAt: null, schoolName: null, validatedAt: null } }
+
     case 'SET_TELEMETRY':
       return { ...state, telemetry: { ...state.telemetry, ...action.payload } }
 
@@ -675,6 +681,32 @@ export function AppProvider({ children }) {
       return
     }
 
+    // Check if a valid license key is cached — if so, bypass limits
+    if (window.electronAPI?.getCachedLicense) {
+      try {
+        const cachedLicense = await window.electronAPI.getCachedLicense()
+        if (cachedLicense.valid) {
+          // Update license state if not already set
+          if (!data.license?.valid) {
+            dispatchRef.current({ type: 'SET_LICENSE', payload: {
+              key: cachedLicense.key,
+              valid: true,
+              plan: cachedLicense.plan,
+              expiresAt: cachedLicense.expiresAt,
+              schoolName: cachedLicense.schoolName,
+              validatedAt: cachedLicense.validatedAt,
+            }})
+          }
+          if (data.appLocked) {
+            dispatchRef.current({ type: 'SET_APP_UNLOCKED' })
+          }
+          return
+        }
+      } catch (err) {
+        console.error('[checkAppLimits] Failed to check cached license:', err)
+      }
+    }
+
     const entityCount =
       (data.teachers?.length || 0) +
       (data.classes?.length || 0) +
@@ -835,6 +867,41 @@ export function AppProvider({ children }) {
     dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: null })
   }, [])
 
+  const validateLicense = useCallback(async (licenseKey) => {
+    if (!window.electronAPI?.validateLicenseKey) {
+      return { valid: false, error: 'License validation is not available in this environment.' }
+    }
+    try {
+      const result = await window.electronAPI.validateLicenseKey(licenseKey)
+      if (result.valid) {
+        dispatchRef.current({ type: 'SET_LICENSE', payload: {
+          key: result.key,
+          valid: true,
+          plan: result.plan,
+          expiresAt: result.expiresAt,
+          schoolName: result.schoolName,
+          validatedAt: result.validatedAt,
+        }})
+        dispatchRef.current({ type: 'SET_APP_UNLOCKED' })
+      }
+      return result
+    } catch (err) {
+      console.error('[validateLicense] Failed:', err)
+      return { valid: false, error: 'Failed to validate license key. Please try again.' }
+    }
+  }, [])
+
+  const clearLicense = useCallback(async () => {
+    if (window.electronAPI?.clearLicense) {
+      try {
+        await window.electronAPI.clearLicense()
+      } catch (err) {
+        console.error('[clearLicense] Failed:', err)
+      }
+    }
+    dispatchRef.current({ type: 'CLEAR_LICENSE' })
+  }, [])
+
   const value = {
     state,
     dispatch,
@@ -844,6 +911,8 @@ export function AppProvider({ children }) {
     entityLimit: 100,
     storageLimitMB: 50,
     dismissStorageWarning,
+    validateLicense,
+    clearLicense,
   }
 
   if (loading) {

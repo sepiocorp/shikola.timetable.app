@@ -9,7 +9,7 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
   const [selectedClassId, setSelectedClassId] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ classId: '', subjectId: '', periodsPerWeek: 1, teacherId: '' })
+  const [form, setForm] = useState({ classId: '', subjectId: '', periodsPerWeek: 1, maxPerDay: 0, teacherId: '' })
 
   const assignmentsForClass = useMemo(() => {
     if (!selectedClassId) return []
@@ -20,14 +20,14 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
 
   const openAdd = () => {
     setEditing(null)
-    setForm({ classId: selectedClassId || '', subjectId: '', periodsPerWeek: 1, teacherId: '' })
+    setForm({ classId: selectedClassId || '', subjectId: '', periodsPerWeek: 1, maxPerDay: 0, teacherId: '' })
     sounds.click()
     setModalOpen(true)
   }
 
   const openEdit = (assignment) => {
     setEditing(assignment)
-    setForm({ classId: assignment.classId, subjectId: assignment.subjectId, periodsPerWeek: assignment.periodsPerWeek, teacherId: assignment.teacherId || '' })
+    setForm({ classId: assignment.classId, subjectId: assignment.subjectId, periodsPerWeek: assignment.periodsPerWeek, maxPerDay: assignment.maxPerDay || 0, teacherId: assignment.teacherId || '' })
     sounds.click()
     setModalOpen(true)
   }
@@ -179,7 +179,8 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
                       <tr className="bg-slate-50 border-b border-slate-200">
                         <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Subject</th>
                         <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Assigned Teacher</th>
-                        <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Required Periods/Week</th>
+                        <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Periods/Week</th>
+                        <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Max/Day</th>
                         <th className="text-right text-xs font-bold text-slate-600 px-4 py-3">Actions</th>
                       </tr>
                     </thead>
@@ -195,6 +196,9 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
                           <td className="px-4 py-3 text-sm text-slate-600">{getTeacherName(a.teacherId) || '— Auto —'}</td>
                           <td className="px-4 py-3 text-center">
                             <Badge color="blue">{a.periodsPerWeek}</Badge>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {a.maxPerDay ? <Badge color="purple">{a.maxPerDay}</Badge> : <span className="text-slate-300">—</span>}
                           </td>
                           <td className="px-4 py-3 text-right">
                             <button onClick={() => openEdit(a)} className="text-slate-400 hover:text-brand-600 mr-2">
@@ -287,14 +291,27 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
               ))}
             </select>
           </div>
-          <Input
-            label="Periods per Week *"
-            type="number"
-            value={form.periodsPerWeek}
-            onChange={e => setForm({ ...form, periodsPerWeek: Math.max(1, Number(e.target.value)) })}
-            min="1"
-            max={totalSlotsPerClass}
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Periods per Week *"
+              type="number"
+              value={form.periodsPerWeek}
+              onChange={e => setForm({ ...form, periodsPerWeek: Math.max(1, Number(e.target.value)) })}
+              min="1"
+              max={totalSlotsPerClass}
+            />
+            <Input
+              label="Max Periods per Day"
+              type="number"
+              value={form.maxPerDay}
+              onChange={e => setForm({ ...form, maxPerDay: Math.max(0, Number(e.target.value)) })}
+              min="0"
+              max={totalSlotsPerClass}
+            />
+          </div>
+          {form.maxPerDay > 0 && (
+            <p className="text-xs text-slate-400 -mt-2">Set to 0 for no daily limit. The generator will not schedule more than this many periods of this subject on any single day.</p>
+          )}
           {form.subjectId && (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Preferred Teacher (optional)</label>
@@ -312,7 +329,7 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
             </div>
           )}
           <div className="bg-brand-50 border border-brand-200 rounded-lg p-3 text-xs text-brand-700">
-            These assignments are exact weekly requirements for this class. The generator will schedule only the periods listed here and will respect the selected class section's morning or afternoon timetable.
+            These assignments are exact weekly requirements for this class. The generator will schedule only the periods listed here, respect the max-per-day limit, and will respect the selected class section's morning or afternoon timetable.
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>

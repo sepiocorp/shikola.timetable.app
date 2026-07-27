@@ -233,7 +233,7 @@ function LicenseSection() {
             by copyright laws and international copyright treaties.
           </p>
           <div className="flex flex-wrap gap-2 pt-2">
-            <Badge color="blue">Version 1.0.9</Badge>
+            <Badge color="blue">Version 1.3.0</Badge>
             <Badge color="slate">Proprietary License</Badge>
             <Badge color="green">Sepio Corp</Badge>
           </div>

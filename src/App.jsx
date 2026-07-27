@@ -149,7 +149,7 @@ function compareVersions(latest, current) {
 let hasShownSplash = false
 
 export default function App() {
-  const { state, dispatch } = useApp()
+  const { state, dispatch, validateLicense } = useApp()
   const [page, setPage] = useState(() => localStorage.getItem('shikola-current-page') || 'home')
   const [loading, setLoading] = useState(!hasShownSplash)
   const [loadProgress, setLoadProgress] = useState(hasShownSplash ? 100 : 0)
@@ -574,7 +574,7 @@ export default function App() {
   }
 
   if (state.appLocked) {
-    return <LockScreen lockReason={state.lockReason} />
+    return <LockScreen lockReason={state.lockReason} validateLicense={validateLicense} />
   }
 
   const pages = {
