@@ -567,7 +567,11 @@ export function AppProvider({ children }) {
   const [state, setState] = useState(cachedData || defaultData)
   const [loading, setLoading] = useState(!cachedData)
   const dispatchRef = useRef(null)
+  const stateRef = useRef(state)
   const storageWarningDismissedRef = useRef(false)
+
+  // Keep stateRef in sync with state
+  stateRef.current = state
 
   // Initialize dispatch ref
   dispatchRef.current = useCallback((action) => {
@@ -872,7 +876,8 @@ export function AppProvider({ children }) {
       return { valid: false, error: 'License validation is not available in this environment.' }
     }
     try {
-      const result = await window.electronAPI.validateLicenseKey(licenseKey)
+      const currentSchoolName = stateRef.current?.school?.name || ''
+      const result = await window.electronAPI.validateLicenseKey(licenseKey, currentSchoolName)
       if (result.valid) {
         dispatchRef.current({ type: 'SET_LICENSE', payload: {
           key: result.key,
@@ -882,6 +887,10 @@ export function AppProvider({ children }) {
           schoolName: result.schoolName,
           validatedAt: result.validatedAt,
         }})
+        // Auto-populate school name if not yet set
+        if (!currentSchoolName && result.schoolName) {
+          dispatchRef.current({ type: 'SET_SCHOOL', payload: { ...stateRef.current.school, name: result.schoolName } })
+        }
         dispatchRef.current({ type: 'SET_APP_UNLOCKED' })
       }
       return result

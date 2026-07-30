@@ -19,7 +19,7 @@ const LICENSES = [
   { key: 'SK-H7T2K5-W9BL4F-P8QX1R', schoolName: 'Matero East Primary School', plan: 'premium', expiresAt: '2031-07-27' },
   { key: 'SK-J3W8N6-C5XR2T-K7DM9L', schoolName: 'Kasamba Secondary School', plan: 'premium', expiresAt: '2031-07-27' },
   // --- Mandevu area ---
-  { key: 'SK-K9R4F1-Q2ZJ7H-N6WL3S', schoolName: 'New Mandevu Primary School', plan: 'premium', expiresAt: '2031-07-27' },
+  { key: 'SK-K9R4F1-Q2ZJ7H-N6WL3S', schoolName: 'New Mandevu Primary & Secondary School', plan: 'premium', expiresAt: '2031-07-27' },
   { key: 'SK-L6B2D8-T3VK5R-W9FX4M', schoolName: 'Ngwerere Primary School', plan: 'premium', expiresAt: '2031-07-27' },
   { key: 'SK-M2Y7K9-F8HN4Q-J5RC3T', schoolName: 'Simon Mwansa Kapwepwe Primary School', plan: 'premium', expiresAt: '2031-07-27' },
   { key: 'SK-N8D3W5-R1ZL6K-B7QM2X', schoolName: 'Justine Kabwe Secondary School', plan: 'premium', expiresAt: '2031-07-27' },

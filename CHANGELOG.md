@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ---
 
+## [1.4.0] — Borealis — 2026-07-30
+
+### Added
+- Double Sessions preference in Subject Assignments — teachers can now be scheduled in consecutive periods (double sessions) instead of single periods
+- "Prefer Double Sessions" checkbox in subject assignment modal to enable consecutive period scheduling
+- Double Sessions column in Subject Assignments tables (By Class and By Teacher views) to show which assignments prefer double sessions
+- Smart generator now prioritizes consecutive periods when double sessions are enabled, reducing the number of times teachers need to return to the same class
+
+### Changed
+- Timetable generator scoring algorithm enhanced to favor consecutive periods for assignments marked with "Prefer Double Sessions"
+
+---
+
 ## [1.3.0] — Aurora — 2026-07-27
 
 ### Added

@@ -55,6 +55,7 @@ const SUB_TABS = {
   about: [
     { id: 'about', label: 'About' },
     { id: 'customization', label: 'Customization' },
+    { id: 'license', label: 'License' },
     { id: 'limits', label: 'Limits' },
     { id: 'privacy', label: 'Privacy' },
     { id: 'updates', label: 'Updates' },
@@ -1308,6 +1309,161 @@ export default function Settings({ searchQuery }) {
                   </div>
                 </div>
               </Card>
+            </>
+          )}
+
+          {subTab === 'license' && (
+            <>
+          <Card className="p-6 mb-6">
+            <h3 className="text-sm font-bold text-slate-700 mb-4">License Key</h3>
+            <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+              Activate your license key to unlock unlimited entities and storage. Each license key is tied to a specific school —
+              it can only be used by the school it was issued for. Your school name in
+              Settings &rarr; School &rarr; Info should be similar to the name on your license (minor variations like
+              "Kabanana Primary" vs "Kabanana Primary School" are accepted).
+            </p>
+
+            {state.license?.valid ? (
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 p-4 rounded-lg bg-green-50 border border-green-200">
+                  <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-green-800">License Active</p>
+                    <div className="mt-2 space-y-1">
+                      <p className="text-xs text-green-700">
+                        <span className="font-medium">School:</span> {state.license.schoolName || 'N/A'}
+                      </p>
+                      <p className="text-xs text-green-700">
+                        <span className="font-medium">Plan:</span> {state.license.plan || 'N/A'}
+                      </p>
+                      {state.license.expiresAt && (
+                        <p className="text-xs text-green-700">
+                          <span className="font-medium">Expires:</span> {new Date(state.license.expiresAt).toLocaleDateString()}
+                        </p>
+                      )}
+                      <p className="text-xs text-green-700">
+                        <span className="font-medium">Activated on:</span> {state.license.validatedAt ? new Date(state.license.validatedAt).toLocaleDateString() : 'N/A'}
+                      </p>
+                    </div>
+                    {state.school?.name && state.license.schoolName && state.school.name.trim().toLowerCase() !== state.license.schoolName.trim().toLowerCase() && (
+                      <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <p className="text-xs text-amber-700 font-semibold">School Name Mismatch</p>
+                        <p className="text-xs text-amber-600 mt-1">
+                          Your configured school name "{state.school.name}" does not appear to match the license school "{state.license.schoolName}".
+                          Please update your school name in Settings &rarr; School &rarr; Info to be similar.
+                        </p>
+                      </div>
+                    )}
+                    <button
+                      onClick={async () => { await clearLicense(); setLicenseSuccess(null); setLicenseError(null) }}
+                      className="inline-block mt-3 text-xs px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium"
+                    >
+                      Remove License
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className={`flex items-start gap-3 p-4 rounded-lg border ${licenseError ? 'bg-red-50 border-red-200' : 'bg-brand-50 border-brand-200'}`}>
+                  <svg className="w-5 h-5 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-slate-700">Activate License</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Enter your license key below. The key will be verified against the school name configured in Settings.
+                      {!state.school?.name && (
+                        <span className="block mt-1 text-amber-600 font-medium">
+                          No school name is configured yet. The license key will auto-fill your school name upon activation.
+                        </span>
+                      )}
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                      <input
+                        type="text"
+                        value={licenseKeyInput}
+                        onChange={(e) => { setLicenseKeyInput(e.target.value); setLicenseError(null); setLicenseSuccess(null) }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !licenseValidating && licenseKeyInput.trim()) {
+                          setLicenseValidating(true); setLicenseError(null); setLicenseSuccess(null)
+                          validateLicense(licenseKeyInput.trim()).then((result) => {
+                            if (result.valid) { setLicenseSuccess('License activated successfully!'); setLicenseKeyInput('') }
+                            else { setLicenseError(result.error || 'Invalid license key.') }
+                          }).catch(() => setLicenseError('Failed to validate license key.'))
+                            .finally(() => setLicenseValidating(false))
+                        } }}
+                        placeholder="SK-XXXXXX-XXXXXX-XXXXXX"
+                        disabled={licenseValidating}
+                        className="flex-1 px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!licenseKeyInput.trim()) { setLicenseError('Please enter a license key.'); return }
+                          setLicenseValidating(true)
+                          setLicenseError(null)
+                          setLicenseSuccess(null)
+                          try {
+                            const result = await validateLicense(licenseKeyInput.trim())
+                            if (result.valid) {
+                              setLicenseSuccess('License activated successfully!')
+                              setLicenseKeyInput('')
+                            } else {
+                              setLicenseError(result.error || 'Invalid license key.')
+                            }
+                          } catch {
+                            setLicenseError('Failed to validate license key.')
+                          } finally {
+                            setLicenseValidating(false)
+                          }
+                        }}
+                        disabled={licenseValidating || !licenseKeyInput.trim()}
+                        className="text-xs px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                      >
+                        {licenseValidating ? 'Validating...' : 'Activate'}
+                      </button>
+                    </div>
+                    {licenseError && <p className="text-xs text-red-600 mt-1">{licenseError}</p>}
+                    {licenseSuccess && <p className="text-xs text-green-600 mt-1">{licenseSuccess}</p>}
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <p className="text-xs font-semibold text-slate-600 mb-2">How License Verification Works</p>
+                  <ul className="text-xs text-slate-500 space-y-1.5">
+                    <li className="flex items-start gap-2">
+                      <span className="text-brand-600 mt-0.5">&#10003;</span>
+                      <span>Each license key is uniquely tied to a specific school name.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-brand-600 mt-0.5">&#10003;</span>
+                      <span>If your school name is already set, it must be similar to the license's school name for activation to succeed.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-brand-600 mt-0.5">&#10003;</span>
+                      <span>If no school name is configured, the license will auto-fill it for you.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-brand-600 mt-0.5">&#10003;</span>
+                      <span>This prevents School A from using a license issued for School B.</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <svg className="w-5 h-5 text-slate-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-slate-700">Don't have a license?</p>
+                    <p className="text-xs text-slate-500 mt-1">Contact Sepio Corp to obtain a license key for your school.</p>
+                    <a href="mailto:sales@shikola.org" className="inline-block mt-2 text-xs px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium">Email Sales</a>
+                  </div>
+                </div>
+              </div>
+            )}
+          </Card>
             </>
           )}
 

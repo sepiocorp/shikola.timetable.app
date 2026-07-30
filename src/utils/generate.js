@@ -243,7 +243,7 @@ export function generateTimetable({
     for (const request of requests) {
       const key = `${request.subject.id}-${request.teacherId || ''}`
       if (!groupMap.has(key)) {
-        const group = { subject: request.subject, teacherId: request.teacherId || '', maxPerDay: request.maxPerDay || 0, count: 0 }
+        const group = { subject: request.subject, teacherId: request.teacherId || '', maxPerDay: request.maxPerDay || 0, preferDoubleSessions: request.preferDoubleSessions || false, count: 0 }
         groupMap.set(key, group)
         groups.push(group)
       }
@@ -255,7 +255,7 @@ export function generateTimetable({
     while (remaining > 0) {
       for (const group of groups) {
         if (group.count <= 0) continue
-        patterned.push({ subject: group.subject, teacherId: group.teacherId, maxPerDay: group.maxPerDay })
+        patterned.push({ subject: group.subject, teacherId: group.teacherId, maxPerDay: group.maxPerDay, preferDoubleSessions: group.preferDoubleSessions })
         group.count--
         remaining--
       }
@@ -281,7 +281,7 @@ export function generateTimetable({
         assignedSubjectIds.add(assignment.subjectId)
         const periods = Math.max(0, Number(assignment.periodsPerWeek) || 0)
         for (let i = 0; i < periods; i++) {
-          list.push({ subject: subj, teacherId: assignment.teacherId || '', maxPerDay: assignment.maxPerDay || 0 })
+          list.push({ subject: subj, teacherId: assignment.teacherId || '', maxPerDay: assignment.maxPerDay || 0, preferDoubleSessions: assignment.preferDoubleSessions || false })
         }
       }
       // Fill remaining slots with even distribution of subjects not in assignments
@@ -294,7 +294,7 @@ export function generateTimetable({
         for (let i = 0; i < fillSubjects.length; i++) {
           const count = evenPerSubject + (i < extra ? 1 : 0)
           for (let j = 0; j < count; j++) {
-            list.push({ subject: fillSubjects[i], teacherId: '', maxPerDay: 0 })
+            list.push({ subject: fillSubjects[i], teacherId: '', maxPerDay: 0, preferDoubleSessions: false })
           }
         }
       }
@@ -432,6 +432,20 @@ export function generateTimetable({
           if (!sameSubjectOnDay) score += 10
         }
 
+        // Prefer consecutive periods for double sessions
+        if (request.preferDoubleSessions) {
+          const periodIndex = classTeachingPeriods.findIndex(p => p.id === slot.periodId)
+          const nextPeriod = classTeachingPeriods[periodIndex + 1]
+          if (nextPeriod) {
+            const nextSlotKey = `${slot.day}-${nextPeriod.id}`
+            const nextConflictKey = makeConflictSlotKey(slot.day, nextPeriod.start, nextPeriod.end, nextPeriod.id)
+            // Check if next period is also available
+            if (!filledSlotsSet.has(nextSlotKey) && !(localTeacherBusy[nextConflictKey] || new Set()).size > 0) {
+              score += 20 // Bonus for consecutive availability
+            }
+          }
+        }
+
         // Prefer earlier periods for "heavier" subjects (heuristic: first in list)
         const periodIndex = classTeachingPeriods.findIndex(p => p.id === slot.periodId)
         score += (classTeachingPeriods.length - periodIndex) * 0.1
@@ -517,6 +531,55 @@ export function generateTimetable({
         classEntries.push(entry)
 
         filledSlotsSet.add(slotKey)
+
+        // If preferDoubleSessions is enabled, try to book the next consecutive period
+        if (request.preferDoubleSessions) {
+          const periodIndex = classTeachingPeriods.findIndex(p => p.id === bestSlot.periodId)
+          const nextPeriod = classTeachingPeriods[periodIndex + 1]
+          if (nextPeriod) {
+            const nextSlotKey = `${bestSlot.day}-${nextPeriod.id}`
+            const nextConflictKey = makeConflictSlotKey(bestSlot.day, nextPeriod.start, nextPeriod.end, nextPeriod.id)
+            
+            // Check if next period is available for the same teacher
+            const nextTeacherAvailable = !(localTeacherBusy[nextConflictKey] || new Set()).has(bestTeacher.id) &&
+              (localTeacherDailyCount[bestTeacher.id]?.[bestSlot.day] || 0) < (bestTeacher.maxPeriods || 6)
+            
+            const nextRoomAvailable = room && !(localRoomBusy[nextConflictKey] || new Set()).has(room.id)
+            
+            if (!filledSlotsSet.has(nextSlotKey) && nextTeacherAvailable && nextRoomAvailable) {
+              // Create entry for the next period with same teacher/subject/class
+              const nextEntry = {
+                id: genId(),
+                day: bestSlot.day,
+                periodId: nextPeriod.id,
+                teacherId: bestTeacher.id,
+                classId: cls.id,
+                subjectId: subject.id,
+                roomId: room?.id || '',
+                secondaryClassId: '',
+                secondarySubjectId: '',
+                secondaryTeacherId: '',
+                lessonLength: subject.lessonLength || 1,
+                lessonGroupId: '',
+                locked: false,
+              }
+              
+              classEntries.push(nextEntry)
+              filledSlotsSet.add(nextSlotKey)
+              
+              // Mark teacher and room as busy for the next period
+              if (!localTeacherBusy[nextConflictKey]) localTeacherBusy[nextConflictKey] = new Set()
+              localTeacherBusy[nextConflictKey].add(bestTeacher.id)
+              if (room) {
+                if (!localRoomBusy[nextConflictKey]) localRoomBusy[nextConflictKey] = new Set()
+                localRoomBusy[nextConflictKey].add(room.id)
+              }
+              if (!localTeacherDailyCount[bestTeacher.id]) localTeacherDailyCount[bestTeacher.id] = {}
+              localTeacherDailyCount[bestTeacher.id][bestSlot.day] =
+                (localTeacherDailyCount[bestTeacher.id][bestSlot.day] || 0) + 1
+            }
+          }
+        }
 
         if (!localTeacherBusy[conflictKey]) localTeacherBusy[conflictKey] = new Set()
         localTeacherBusy[conflictKey].add(bestTeacher.id)

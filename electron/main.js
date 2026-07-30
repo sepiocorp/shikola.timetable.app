@@ -392,7 +392,60 @@ function clearLicenseCache() {
   }
 }
 
-ipcMain.handle('license:validate', async (_event, licenseKey) => {
+// Fuzzy school name matching — allows minor variations like "Kabanana Primary"
+// vs "Kabanana Primary School" while still preventing cross-school misuse
+function normalizeSchoolName(name) {
+  if (!name) return ''
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/\bschool\b/g, '')
+    .replace(/\bprimary\b/g, '')
+    .replace(/\bsecondary\b/g, '')
+    .replace(/\bcombined\b/g, '')
+    .replace(/\bthe\b/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function levenshteinDistance(a, b) {
+  const m = a.length, n = b.length
+  if (m === 0) return n
+  if (n === 0) return m
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+  for (let i = 0; i <= m; i++) dp[i][0] = i
+  for (let j = 0; j <= n; j++) dp[0][j] = j
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost)
+    }
+  }
+  return dp[m][n]
+}
+
+function isSchoolNameSimilar(configured, license) {
+  if (!configured || !license) return true
+  // Exact match
+  if (configured === license) return true
+  // Normalized match (ignores "school", "primary", "secondary", punctuation, etc.)
+  const normConfigured = normalizeSchoolName(configured)
+  const normLicense = normalizeSchoolName(license)
+  if (normConfigured === normLicense) return true
+  // Substring containment (e.g., "kabanana" contains / is contained in "kabanana")
+  if (normConfigured && normLicense) {
+    if (normConfigured.includes(normLicense) || normLicense.includes(normConfigured)) return true
+  }
+  // Levenshtein similarity ratio >= 0.6 (allows typos and minor word order differences)
+  const maxLen = Math.max(normConfigured.length, normLicense.length)
+  if (maxLen === 0) return true
+  const distance = levenshteinDistance(normConfigured, normLicense)
+  const similarity = 1 - distance / maxLen
+  return similarity >= 0.6
+}
+
+ipcMain.handle('license:validate', async (_event, licenseKey, schoolName) => {
   if (!licenseKey || typeof licenseKey !== 'string') {
     return { valid: false, error: 'No license key provided.' }
   }
@@ -403,6 +456,19 @@ ipcMain.handle('license:validate', async (_event, licenseKey) => {
   const result = validateEmbeddedLicense(trimmedKey)
 
   if (result.valid) {
+    // Verify school name is similar — prevents School A from using School B's license
+    // while allowing minor variations (e.g., "Kabanana Primary" vs "Kabanana Primary School")
+    const configuredSchool = (schoolName || '').trim()
+    const licenseSchool = (result.schoolName || '').trim()
+    if (configuredSchool && licenseSchool && !isSchoolNameSimilar(configuredSchool.toLowerCase(), licenseSchool.toLowerCase())) {
+      // Don't mark as activated since validation failed at school-name check
+      activatedKeys.delete(trimmedKey)
+      return {
+        valid: false,
+        error: `This license key is for "${result.schoolName}", but your school is configured as "${schoolName.trim()}". A license key can only be used by the school it was issued for. Please update your school name in Settings → School → Info to match, or contact Sepio Corp if you believe this is an error.`,
+      }
+    }
+
     const cacheEntry = {
       key: result.key,
       valid: true,
@@ -413,7 +479,7 @@ ipcMain.handle('license:validate', async (_event, licenseKey) => {
     }
     writeLicenseCache(cacheEntry)
     console.log(`[License] Validated successfully: ${result.schoolName}`)
-    return { valid: true, ...cacheEntry }
+    return { valid: true, ...cacheEntry, schoolNameMatched: !configuredSchool || isSchoolNameSimilar(configuredSchool.toLowerCase(), licenseSchool.toLowerCase()) }
   }
 
   // Invalid key — clear any stale cache

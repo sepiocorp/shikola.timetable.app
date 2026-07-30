@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkShikolaManagementInstalled: () => ipcRenderer.invoke('app:checkShikolaManagementInstalled'),
 
   // License key APIs
-  validateLicenseKey: (key) => ipcRenderer.invoke('license:validate', key),
+  validateLicenseKey: (key, schoolName) => ipcRenderer.invoke('license:validate', key, schoolName),
   getCachedLicense: () => ipcRenderer.invoke('license:getCached'),
   clearLicense: () => ipcRenderer.invoke('license:clear'),
 
