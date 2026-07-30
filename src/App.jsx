@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useApp } from './store/AppContext.jsx'
 import { sounds, setSoundEnabled } from './utils/sounds.js'
 import { applyColorScale } from './utils/colors.js'
@@ -24,14 +24,13 @@ import Statistics from './pages/Statistics.jsx'
 import TimetableVerification from './pages/TimetableVerification.jsx'
 import Substitutions from './pages/Substitutions.jsx'
 import LessonGroups from './pages/LessonGroups.jsx'
-import Pupils from './pages/Pupils.jsx'
 import SubjectAssignments from './pages/SubjectAssignments.jsx'
 import ManageRooms from './pages/ManageRooms.jsx'
 import CompareTimetables from './pages/CompareTimetables.jsx'
 import BackupRestore from './pages/BackupRestore.jsx'
 import WhatsNew, { useWhatsNew } from './components/WhatsNew.jsx'
 import CommandPalette from './components/CommandPalette.jsx'
-import { APP_VERSION } from './data/changelog.js'
+import { APP_VERSION, APP_CODENAME } from './data/changelog.js'
 import LockScreen from './components/LockScreen.jsx'
 
 function UndoToast() {
@@ -147,14 +146,18 @@ function compareVersions(latest, current) {
   return false
 }
 
+let hasShownSplash = false
+
 export default function App() {
-  const { state, dispatch } = useApp()
+  const { state, dispatch, validateLicense } = useApp()
   const [page, setPage] = useState(() => localStorage.getItem('shikola-current-page') || 'home')
-  const [loading, setLoading] = useState(true)
-  const [loadProgress, setLoadProgress] = useState(0)
+  const [loading, setLoading] = useState(!hasShownSplash)
+  const [loadProgress, setLoadProgress] = useState(hasShownSplash ? 100 : 0)
   const [showDocs, setShowDocs] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchFocused, setSearchFocused] = useState(false)
+  const searchRef = useRef(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('shikola-sidebar-collapsed') === 'true')
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
@@ -163,11 +166,15 @@ export default function App() {
   const [updateStatus, setUpdateStatus] = useState(null)
   const [installInfo, setInstallInfo] = useState(null)
   const [autoUpdateInfo, setAutoUpdateInfo] = useState(null)
+  const [autoInstallCountdown, setAutoInstallCountdown] = useState(null)
   const [downloadProgress, setDownloadProgress] = useState(null)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false)
+  const profileRef = useRef(null)
   const { showWhatsNew, dismissWhatsNew } = useWhatsNew()
 
   useEffect(() => {
+    if (hasShownSplash) return
     const duration = 800
     const interval = setInterval(() => {
       setLoadProgress(prev => {
@@ -178,6 +185,7 @@ export default function App() {
     const timer = setTimeout(() => {
       setLoadProgress(100)
       setLoading(false)
+      hasShownSplash = true
     }, duration)
     return () => { clearInterval(interval); clearTimeout(timer) }
   }, [])
@@ -189,6 +197,17 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('shikola-sidebar-collapsed', sidebarCollapsed)
   }, [sidebarCollapsed])
+
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   // Command Palette: Ctrl+K to open
   useEffect(() => {
@@ -225,6 +244,24 @@ export default function App() {
     }
   }, [state.telemetry?.analyticsEnabled])
 
+  // Sync auto-update preferences with main process on load
+  useEffect(() => {
+    if (window.electronAPI?.updater?.getConfig) {
+      window.electronAPI.updater.getConfig().then((config) => {
+        if (config) {
+          dispatch({ type: 'SET_AUTO_UPDATE', payload: config })
+        }
+      }).catch(() => {})
+    }
+  }, [])
+
+  // Send auto-update preference changes to main process
+  useEffect(() => {
+    if (window.electronAPI?.updater?.setConfig) {
+      window.electronAPI.updater.setConfig(state.autoUpdate).catch(() => {})
+    }
+  }, [state.autoUpdate])
+
   // Auto-updater: listen for background update events from Electron
   useEffect(() => {
     const updater = window.electronAPI?.updater
@@ -249,10 +286,34 @@ export default function App() {
         trackEvent('update_downloaded', { version: info.version })
       }
     })
+    updater.onAutoInstallPending((info) => {
+      setDownloadProgress(null)
+      setAutoUpdateInfo({
+        version: info.version,
+        releaseNotes: info.releaseNotes,
+      })
+      setAutoInstallCountdown(info.secondsRemaining || 60)
+    })
     updater.onError(() => {
       setDownloadProgress(null)
+      setAutoInstallCountdown(null)
     })
   }, [state.telemetry?.analyticsEnabled])
+
+  // Auto-install countdown: notify user before automatic restart
+  useEffect(() => {
+    if (autoInstallCountdown === null || autoInstallCountdown <= 0) return
+    const timer = setInterval(() => {
+      setAutoInstallCountdown(prev => {
+        if (prev === null || prev <= 1) {
+          clearInterval(timer)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [autoInstallCountdown])
 
   // Telemetry: send launch event and set up crash handling based on consent
   useEffect(() => {
@@ -343,6 +404,67 @@ export default function App() {
   const DepartmentsPage = Departments
   const GeneratePage = SmartGenerate
   const ViewPage = ViewTimetables
+
+  const pageTitles = {
+    home: { title: 'Home', subtitle: 'Dashboard overview' },
+    teachers: { title: 'Teachers', subtitle: 'Manage teaching staff' },
+    classes: { title: 'Classes', subtitle: 'Manage classes and sections' },
+    subjects: { title: 'Subjects', subtitle: 'Manage subjects offered' },
+    departments: { title: 'Departments', subtitle: 'Manage academic departments' },
+    rooms: { title: 'Rooms', subtitle: 'Manage rooms and facilities' },
+    editor: { title: 'Timetable Editor', subtitle: 'Create and modify timetables' },
+    generate: { title: 'Smart Generate', subtitle: 'Auto-generate timetables' },
+    view: { title: 'View Timetables', subtitle: 'View and export timetables' },
+    print: { title: 'Print Preview', subtitle: 'Preview and print timetables' },
+    constraints: { title: 'Teacher Constraints', subtitle: 'Set availability and limits' },
+    relationships: { title: 'Card Relationships', subtitle: 'Define scheduling rules' },
+    verify: { title: 'Verify Timetable', subtitle: 'Check for conflicts' },
+    statistics: { title: 'Statistics', subtitle: 'Detailed timetable analytics' },
+    substitutions: { title: 'Substitutions', subtitle: 'Manage teacher absences' },
+    backup: { title: 'Backup & Restore', subtitle: 'Save and restore data' },
+    lessonGroups: { title: 'Lesson Groups', subtitle: 'Manage lesson groupings' },
+    subjectAssignments: { title: 'Subject Assignments', subtitle: 'Assign subjects to teachers' },
+    compare: { title: 'Compare Timetables', subtitle: 'Compare multiple timetables' },
+    settings: { title: 'Settings', subtitle: 'School and system configuration' },
+  }
+
+  const searchResults = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim()
+    if (!q) return []
+    const results = []
+    Object.entries(pageTitles).forEach(([id, info]) => {
+      if (info.title.toLowerCase().includes(q) || info.subtitle.toLowerCase().includes(q)) {
+        results.push({ type: 'page', id, label: info.title, desc: info.subtitle })
+      }
+    })
+    state.teachers.forEach(t => {
+      if (t.name.toLowerCase().includes(q)) results.push({ type: 'entity', page: 'teachers', label: t.name, desc: 'Teacher' })
+    })
+    state.classes.forEach(c => {
+      if (c.name.toLowerCase().includes(q)) results.push({ type: 'entity', page: 'classes', label: c.name, desc: 'Class' })
+    })
+    state.subjects.forEach(s => {
+      if (s.name.toLowerCase().includes(q)) results.push({ type: 'entity', page: 'subjects', label: s.name, desc: 'Subject' })
+    })
+    state.rooms.forEach(r => {
+      if (r.name.toLowerCase().includes(q)) results.push({ type: 'entity', page: 'rooms', label: r.name, desc: 'Room' })
+    })
+    state.departments.forEach(d => {
+      if (d.name.toLowerCase().includes(q)) results.push({ type: 'entity', page: 'departments', label: d.name, desc: 'Department' })
+    })
+    return results.slice(0, 8)
+  }, [searchQuery, pageTitles, state.teachers, state.classes, state.subjects, state.rooms, state.departments])
+
+  // Close search dropdown when clicking outside
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setSearchFocused(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
 
   if (loading) {
     return (
@@ -452,7 +574,7 @@ export default function App() {
   }
 
   if (state.appLocked) {
-    return <LockScreen lockReason={state.lockReason} />
+    return <LockScreen lockReason={state.lockReason} validateLicense={validateLicense} />
   }
 
   const pages = {
@@ -462,7 +584,6 @@ export default function App() {
     subjects: <SubjectsPage navigate={navigate} searchQuery={searchQuery} />,
     departments: <DepartmentsPage navigate={navigate} searchQuery={searchQuery} />,
     rooms: <ManageRooms navigate={navigate} searchQuery={searchQuery} />,
-    pupils: <Pupils navigate={navigate} searchQuery={searchQuery} />,
     editor: <TimetableEditor navigate={navigate} searchQuery={searchQuery} />,
     generate: <GeneratePage navigate={navigate} searchQuery={searchQuery} />,
     view: <ViewPage navigate={navigate} searchQuery={searchQuery} />,
@@ -480,101 +601,228 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex flex-col h-screen bg-white">
       <StorageWarningBanner onOpenModal={() => setStorageLimitModal(true)} />
-      <Sidebar
-        current={page}
-        navigate={navigate}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(v => !v)}
-        mobileOpen={mobileSidebarOpen}
-        onCloseMobile={() => setMobileSidebarOpen(false)}
-      />
-      <div className="flex-1 overflow-auto flex flex-col min-w-0">
-        {/* Header bar */}
-        <div className="sticky top-0 z-30 bg-white border-b border-slate-200 px-3 md:px-6 py-2.5 flex items-center gap-3">
-          {/* Mobile hamburger menu */}
-          <button
-            onClick={() => { sounds.click(); setMobileSidebarOpen(true) }}
-            className="md:hidden p-2 -ml-1 text-slate-600 hover:text-brand-600 hover:bg-slate-50 rounded-lg transition-colors"
-            title="Open menu"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+      {/* Header bar */}
+      <div className="bg-white border-b border-slate-200 px-4 sm:px-8 py-3 flex items-center justify-between gap-4 z-30 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            {/* Mobile hamburger menu */}
+            <button
+              onClick={() => { sounds.click(); setMobileSidebarOpen(true) }}
+              className="md:hidden p-2 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+              title="Open menu"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
 
-          {/* Logo + App Name */}
-          <div className="flex items-center gap-2.5 flex-shrink-0">
-            <img src="./logo.png" alt="Shikola logo" className="w-8 h-8 rounded-lg object-contain" />
-            <div className="hidden sm:block">
-              <h1 className="text-sm font-bold text-slate-800 leading-tight">Shikola</h1>
-              <p className="text-[10px] text-slate-500 leading-tight">Timetable Creator</p>
+            {/* App name */}
+            <div className="flex items-center gap-2">
+              <img src="./logo.png" alt="Shikola logo" className="w-7 h-7 rounded-lg object-contain" />
+              <div className="hidden sm:block">
+                <h1 className="text-lg font-semibold text-slate-800 leading-tight">{pageTitles[page]?.title || 'Shikola'}</h1>
+                <p className="text-xs text-slate-400 leading-tight">{pageTitles[page]?.subtitle || 'Timetable Creator'}</p>
+              </div>
             </div>
           </div>
 
-          {/* Search */}
-          <div className="relative flex-1 max-w-md hidden md:block">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search teachers, classes, subjects, rooms..."
-              className="w-full pl-9 pr-16 py-1.5 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
-            />
-            {searchQuery ? (
-              <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          <div className="flex items-center gap-3">
+            {/* Search */}
+            <div ref={searchRef} className="relative hidden sm:block">
+              <div className="flex items-center bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 w-64">
+                <svg className="w-4 h-4 text-slate-400 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 011-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onFocus={() => setSearchFocused(true)}
+                  placeholder="Search pages..."
+                  className="bg-transparent text-sm text-slate-600 placeholder-slate-400 focus:outline-none flex-1"
+                />
+                {searchQuery ? (
+                  <button onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-slate-600">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowCommandPalette(true)}
+                    className="text-[10px] font-medium text-slate-400 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded border border-slate-200 transition-colors"
+                    title="Open Command Palette (Ctrl+K)"
+                  >
+                    Ctrl K
+                  </button>
+                )}
+              </div>
+              {searchFocused && searchQuery && searchResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-xl border border-slate-200 py-2 z-50 max-h-80 overflow-y-auto">
+                  {searchResults.map((result, i) => (
+                    <button
+                      key={`${result.type}-${result.label}-${i}`}
+                      onClick={() => {
+                        sounds.click()
+                        navigate(result.type === 'page' ? result.id : result.page)
+                        setSearchFocused(false)
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 011-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-700 truncate">{result.label}</p>
+                        <p className="text-xs text-slate-400 truncate">{result.desc}</p>
+                      </div>
+                      {result.type === 'entity' && (
+                        <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded capitalize">{result.desc}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {searchFocused && searchQuery && searchResults.length === 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-xl border border-slate-200 py-3 z-50">
+                  <p className="text-sm text-slate-400 text-center">No results found for "{searchQuery}"</p>
+                </div>
+              )}
+            </div>
+
+            {/* Mobile search toggle */}
+            <button
+              onClick={() => { sounds.click(); setMobileSearchOpen(v => !v) }}
+              className="sm:hidden p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+              title="Search"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 011-14 0 7 7 0 0114 0z" />
+              </svg>
+            </button>
+
+            {/* Profile dropdown */}
+            <div className="relative" ref={profileRef}>
+              <button
+                onClick={() => { sounds.click(); setProfileDropdownOpen(v => !v) }}
+                className="flex items-center gap-2 p-1 pr-2 rounded-lg hover:bg-slate-100 transition-colors"
+                title="Profile"
+              >
+                {state.school?.logo ? (
+                  <img src={state.school.logo} alt="School logo" className="w-8 h-8 rounded-lg object-contain bg-white border border-slate-200" />
+                ) : (
+                  <div className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                )}
+                <span className="text-sm font-medium text-slate-700 hidden sm:block max-w-[140px] truncate">{state.school?.name || 'School'}</span>
+                <svg className={`w-4 h-4 text-slate-400 transition-transform ${profileDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-            ) : (
-              <button
-                onClick={() => setShowCommandPalette(true)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-medium text-slate-400 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded border border-slate-200 transition-colors"
-                title="Open Command Palette (Ctrl+K)"
-              >
-                Ctrl K
-              </button>
-            )}
+
+              {profileDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-50 animate-fade-in">
+                  {/* School info */}
+                  <div className="px-4 py-3 border-b border-slate-100">
+                    <div className="flex items-center gap-3">
+                      {state.school?.logo ? (
+                        <img src={state.school.logo} alt="School logo" className="w-10 h-10 rounded-lg object-contain bg-white border border-slate-200" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-slate-200 flex items-center justify-center">
+                          <svg className="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate">{state.school?.name || 'Unknown School'}</p>
+                        {state.school?.email && <p className="text-xs text-slate-400 truncate">{state.school.email}</p>}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Menu items */}
+                  <button
+                    onClick={() => { setProfileDropdownOpen(false); navigate('settings'); sounds.click() }}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Settings
+                  </button>
+                  <button
+                    onClick={() => { setProfileDropdownOpen(false); setShowAbout(true); sounds.click() }}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    About
+                  </button>
+                  <button
+                    onClick={() => { setProfileDropdownOpen(false); setShowDocs(true); sounds.click() }}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    Documentation
+                  </button>
+                  <button
+                    onClick={() => { setProfileDropdownOpen(false); setShowUpdates(true); sounds.click() }}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Check for Updates
+                  </button>
+                  <div className="border-t border-slate-100 mt-1 pt-1">
+                    <p className="px-4 py-2 text-xs text-slate-400">v{APP_VERSION} "{APP_CODENAME}"</p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-
-          {/* Mobile search toggle */}
-          <button
-            onClick={() => { sounds.click(); setMobileSearchOpen(v => !v) }}
-            className="md:hidden p-2 text-slate-600 hover:text-brand-600 hover:bg-slate-50 rounded-lg transition-colors"
-            title="Search"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </button>
-
-          <span className="text-xs text-slate-400 hidden sm:inline">{page === 'home' ? 'Home' : page.charAt(0).toUpperCase() + page.slice(1)}</span>
-        </div>
 
         {/* Mobile search bar (expandable) */}
         {mobileSearchOpen && (
-          <div className="md:hidden px-3 py-2 bg-white border-b border-slate-200">
-            <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <div className="sm:hidden px-4 py-3 bg-white border-b border-slate-200 flex-shrink-0">
+            <div className="relative flex items-center bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+              <svg className="w-4 h-4 text-slate-400 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 011-14 0 7 7 0 0114 0z" />
               </svg>
               <input
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search..."
-                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
+                className="bg-transparent text-sm text-slate-600 placeholder-slate-400 focus:outline-none flex-1"
                 autoFocus
               />
             </div>
           </div>
         )}
-        <div className="flex-1 overflow-auto">
+      </div>
+
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar
+          current={page}
+          navigate={navigate}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(v => !v)}
+          mobileOpen={mobileSidebarOpen}
+          onCloseMobile={() => setMobileSidebarOpen(false)}
+        />
+        <div className="flex-1 overflow-y-auto min-w-0">
           {pages[page]}
         </div>
       </div>
@@ -604,6 +852,47 @@ export default function App() {
         </div>
       )}
 
+      {/* Auto-install countdown toast */}
+      {autoInstallCountdown !== null && (
+        <div className="fixed bottom-4 right-4 z-[200] animate-fade-in">
+          <div className="bg-white rounded-lg shadow-xl border border-slate-200 px-4 py-3 w-80">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-slate-700">Restarting to update...</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Shikola will restart and install v{autoUpdateInfo?.version || 'the latest update'} in {autoInstallCountdown}s.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  window.electronAPI?.updater?.installNow()
+                  setAutoInstallCountdown(null)
+                }}
+                className="flex-1 px-3 py-2 bg-brand-600 text-white text-xs font-medium rounded-lg hover:bg-brand-700 transition-colors"
+              >
+                Restart now
+              </button>
+              <button
+                onClick={() => {
+                  window.electronAPI?.updater?.installOnQuit()
+                  setAutoInstallCountdown(null)
+                }}
+                className="flex-1 px-3 py-2 bg-slate-100 text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-200 transition-colors"
+              >
+                Install later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Auto-update ready notification toast */}
       {autoUpdateInfo && (
         <div className="fixed bottom-4 right-4 z-[200] animate-fade-in">
@@ -616,7 +905,11 @@ export default function App() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-slate-700">Update ready to install</p>
-                <p className="text-xs text-slate-500 mt-0.5">v{autoUpdateInfo.version} has been downloaded. Restart to apply.</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {state.autoUpdate?.installOnQuit !== false
+                    ? `v${autoUpdateInfo.version} has been downloaded and will be installed automatically when you quit.`
+                    : `v${autoUpdateInfo.version} has been downloaded. Restart to apply.`}
+                </p>
               </div>
               <button
                 onClick={() => setAutoUpdateInfo(null)}
@@ -635,17 +928,19 @@ export default function App() {
                 }}
                 className="flex-1 px-3 py-2 bg-brand-600 text-white text-xs font-medium rounded-lg hover:bg-brand-700 transition-colors"
               >
-                Install now & restart
+                Restart now
               </button>
-              <button
-                onClick={() => {
-                  window.electronAPI?.updater?.installOnQuit()
-                  setAutoUpdateInfo(null)
-                }}
-                className="flex-1 px-3 py-2 bg-slate-100 text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-200 transition-colors"
-              >
-                Install on quit
-              </button>
+              {state.autoUpdate?.installOnQuit === false && (
+                <button
+                  onClick={() => {
+                    window.electronAPI?.updater?.installOnQuit()
+                    setAutoUpdateInfo(null)
+                  }}
+                  className="flex-1 px-3 py-2 bg-slate-100 text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-200 transition-colors"
+                >
+                  Install on quit
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@ import React from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { Card, PageHeader, Badge } from '../components/UI.jsx'
 import { ChangelogList } from '../components/WhatsNew.jsx'
-import { APP_VERSION } from '../data/changelog.js'
+import { APP_VERSION, APP_CODENAME } from '../data/changelog.js'
 
 export default function About() {
   const { state } = useApp()
@@ -32,7 +32,7 @@ export default function About() {
             <h2 className="text-2xl font-bold text-slate-800">Shikola Timetable Creator</h2>
             <p className="text-sm text-slate-500 mt-1">by Sepio Corp</p>
             <div className="flex items-center gap-2 mt-3">
-              <Badge color="blue">Version {APP_VERSION}</Badge>
+              <Badge color="blue">Version {APP_VERSION} "{APP_CODENAME}"</Badge>
               <Badge color="green">Desktop App</Badge>
               <Badge color="slate">Offline</Badge>
             </div>

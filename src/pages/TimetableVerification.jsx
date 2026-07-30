@@ -1,16 +1,11 @@
-import React, { useState, useMemo, forwardRef, useImperativeHandle, useEffect } from 'react'
+import React, { useState, useMemo, forwardRef, useImperativeHandle } from 'react'
 import { useApp, getScheduleForClass } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
 import { Button, Card, PageHeader, Badge, ProgressBar, SkeletonCard } from '../components/UI.jsx'
 
 const TimetableVerification = forwardRef(function TimetableVerification({ embedded, onBack }, ref) {
   const { state } = useApp()
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
+  const [loading, setLoading] = useState(false)
 
   const [results, setResults] = useState(null)
 

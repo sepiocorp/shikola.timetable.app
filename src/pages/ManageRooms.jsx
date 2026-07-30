@@ -1,16 +1,11 @@
-import React, { useState, forwardRef, useImperativeHandle, useEffect } from 'react'
+import React, { useState, forwardRef, useImperativeHandle } from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
 import { Button, Input, Card, PageHeader, Modal, EmptyState, Badge, Toggle, Tabs, SkeletonCard } from '../components/UI.jsx'
 
 const ManageRooms = forwardRef(function ManageRooms({ embedded, onBack, searchQuery }, ref) {
   const { state, dispatch } = useApp()
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
+  const [loading, setLoading] = useState(false)
 
   const filteredRooms = state.rooms.filter(room =>
     room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -19,7 +14,6 @@ const ManageRooms = forwardRef(function ManageRooms({ embedded, onBack, searchQu
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({ name: '', capacity: 30, type: 'Classroom', isShared: false })
-  const [viewMode, setViewMode] = useState('list')
   const [tab, setTab] = useState('rooms')
   const [supervisionForm, setSupervisionForm] = useState({ roomId: '', teacherId: '', day: '', periodId: '' })
 
@@ -89,18 +83,6 @@ const ManageRooms = forwardRef(function ManageRooms({ embedded, onBack, searchQu
 
   return (
     <div className="p-4 md:p-8">
-      {!embedded ? (
-        <PageHeader
-          title="Rooms"
-          subtitle={`${state.rooms.length} room(s) registered`}
-          action={
-            <div className="flex gap-2">
-              {tab === 'rooms' && <Button onClick={openAdd}>+ Add Room</Button>}
-            </div>
-          }
-        />
-      ) : null}
-
       {!embedded && (
         <div className="mb-4">
           <Tabs
@@ -110,6 +92,13 @@ const ManageRooms = forwardRef(function ManageRooms({ embedded, onBack, searchQu
             ]}
             active={tab}
             onChange={(id) => { setTab(id); sounds.click() }}
+            action={
+              <div className="flex gap-2 items-center">
+                {tab === 'rooms' && <>
+                  <Button onClick={openAdd}>+ Add Room</Button>
+                </>}
+              </div>
+            }
           />
         </div>
       )}
@@ -178,17 +167,6 @@ const ManageRooms = forwardRef(function ManageRooms({ embedded, onBack, searchQu
 
       {(embedded || tab === 'rooms') && (
         <>
-      <div className="mb-4 flex gap-2">
-        <button
-          onClick={() => { setViewMode('list'); sounds.click() }}
-          className={`px-3 py-1.5 text-xs font-medium rounded-lg ${viewMode === 'list' ? 'bg-brand-600 text-white' : 'bg-white border border-slate-300 text-slate-600'}`}
-        >List View</button>
-        <button
-          onClick={() => { setViewMode('grid'); sounds.click() }}
-          className={`px-3 py-1.5 text-xs font-medium rounded-lg ${viewMode === 'grid' ? 'bg-brand-600 text-white' : 'bg-white border border-slate-300 text-slate-600'}`}
-        >Grid View</button>
-      </div>
-
       {filteredRooms.length === 0 && searchQuery ? (
         <Card className="p-6">
           <EmptyState
@@ -206,7 +184,7 @@ const ManageRooms = forwardRef(function ManageRooms({ embedded, onBack, searchQu
             action={<Button onClick={openAdd}>+ Add Room</Button>}
           />
         </Card>
-      ) : viewMode === 'list' ? (
+      ) : (
         <Card className="overflow-auto">
           <table className="w-full border-collapse">
             <thead>
@@ -242,42 +220,6 @@ const ManageRooms = forwardRef(function ManageRooms({ embedded, onBack, searchQu
             </tbody>
           </table>
         </Card>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredRooms.map(room => (
-            <Card key={room.id} className="p-5">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center">
-                    <svg className="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">{room.name}</p>
-                    <p className="text-xs text-slate-500">Capacity: {room.capacity}</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => openEdit(room)} className="text-slate-400 hover:text-brand-600">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
-                  <button onClick={() => handleDelete(room.id)} className="text-slate-400 hover:text-red-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <div className="mt-2 flex items-center gap-2">
-                <p className="text-xs text-slate-400">{room.type}</p>
-                {room.isShared && <Badge color="amber">Shared</Badge>}
-              </div>
-            </Card>
-          ))}
-        </div>
       )}
       </>
       )}

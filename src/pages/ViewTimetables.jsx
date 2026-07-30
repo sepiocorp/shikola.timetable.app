@@ -18,7 +18,7 @@ export default function ViewTimetables({ navigate, searchQuery }) {
   const [paperSize, setPaperSize] = useState('a4')
   const [orientation, setOrientation] = useState('landscape')
   const [exporting, setExporting] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [bulkMode, setBulkMode] = useState(false)
   const verificationRef = useRef(null)
   const printRef = useRef(null)
@@ -27,11 +27,6 @@ export default function ViewTimetables({ navigate, searchQuery }) {
   const [sectionFilter, setSectionFilter] = useState('')
   const [departmentFilter, setDepartmentFilter] = useState('')
   const [pageTab, setPageTab] = useState('view')
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
 
   const activePeriod = state.academicPeriods.find(p => p.id === state.activePeriodId)
   const periodLabel = activePeriod ? activePeriod.name : ''
@@ -342,29 +337,6 @@ export default function ViewTimetables({ navigate, searchQuery }) {
         </div>
       )}
 
-      <PageHeader
-        title={pageTab === 'statistics' ? 'Statistics' : pageTab === 'verify' ? 'Timetable Verification' : pageTab === 'print' ? 'Print Preview' : bulkMode ? 'Bulk Export' : 'View Timetables'}
-        subtitle={pageTab === 'statistics' ? 'Analyze gaps, teacher load, and timetable efficiency' : pageTab === 'verify' ? 'Validate your data and timetable against all constraints before and after generation' : pageTab === 'print' ? 'WYSIWYG preview of your timetables before printing' : 'View and export timetables as PDF or CSV'}
-        action={
-          <div className="flex items-center gap-2">
-            {periodLabel && (
-              <span className="inline-flex items-center px-3 py-1 rounded-lg bg-brand-100 text-brand-700 text-sm font-medium">
-                {periodLabel}
-              </span>
-            )}
-            {pageTab === 'verify' && <Button onClick={() => verificationRef.current?.runVerification()} disabled={state.classes.length === 0}>Run Verification</Button>}
-            {pageTab === 'print' && <Button onClick={() => printRef.current?.handlePrint()}>
-              <span className="flex items-center gap-1.5">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
-                Print
-              </span>
-            </Button>}
-          </div>
-        }
-      />
-
       <div className="mb-4">
         <Tabs
           tabs={[
@@ -381,6 +353,24 @@ export default function ViewTimetables({ navigate, searchQuery }) {
             else { setPageTab(id); }
             sounds.click()
           }}
+          action={
+            <div className="flex items-center gap-2">
+              {periodLabel && (
+                <span className="inline-flex items-center px-3 py-1 rounded-lg bg-brand-100 text-brand-700 text-sm font-medium">
+                  {periodLabel}
+                </span>
+              )}
+              {pageTab === 'verify' && <Button onClick={() => verificationRef.current?.runVerification()} disabled={state.classes.length === 0}>Run Verification</Button>}
+              {pageTab === 'print' && <Button onClick={() => printRef.current?.handlePrint()}>
+                <span className="flex items-center gap-1.5">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print
+                </span>
+              </Button>}
+            </div>
+          }
         />
       </div>
 

@@ -8,12 +8,8 @@ import Substitutions from './Substitutions.jsx'
 
 export default function ManageTeachers({ navigate, searchQuery }) {
   const { state, dispatch } = useApp()
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
   const [activeTab, setActiveTab] = useState('teachers')
   const substitutionsRef = useRef(null)
   const [modalOpen, setModalOpen] = useState(false)
@@ -22,7 +18,6 @@ export default function ManageTeachers({ navigate, searchQuery }) {
   const [form, setForm] = useState({ name: '', subjects: [], classes: [], maxPeriods: 6, availability: {}, maxGapsPerWeek: 5, maxConsecutivePeriods: 4, maxLessonsPerDay: 8, minLessonsPerDay: 0, maxTeachingDays: 5 })
   const [showAvailability, setShowAvailability] = useState(false)
   const [showConstraints, setShowConstraints] = useState(false)
-  const [viewMode, setViewMode] = useState('list')
 
   const filteredTeachers = state.teachers.filter(teacher =>
     teacher.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -144,20 +139,6 @@ export default function ManageTeachers({ navigate, searchQuery }) {
 
   return (
     <div className="p-4 md:p-8">
-      <PageHeader
-        title={activeTab === 'constraints' ? 'Constraints & Time Off' : activeTab === 'substitutions' ? 'Substitutions' : 'Teachers'}
-        subtitle={activeTab === 'constraints' ? 'Set teacher availability and scheduling limits' : activeTab === 'substitutions' ? 'Track absent teachers and assign substitutes' : `${state.teachers.length} teacher(s) registered`}
-        action={
-          <div className="flex gap-2">
-            {activeTab === 'teachers' && <>
-              <Button variant="secondary" onClick={() => { sounds.click(); setBulkOpen(true) }}>Bulk Import</Button>
-              <Button onClick={openAdd}>+ Add Teacher</Button>
-            </>}
-            {activeTab === 'substitutions' && <Button onClick={() => substitutionsRef.current?.openAdd()}>+ Add Substitution</Button>}
-          </div>
-        }
-      />
-
       <div className="mb-4">
         <Tabs
           tabs={[
@@ -167,6 +148,15 @@ export default function ManageTeachers({ navigate, searchQuery }) {
           ]}
           active={activeTab}
           onChange={(id) => { setActiveTab(id); sounds.click() }}
+          action={
+            <div className="flex gap-2 items-center">
+              {activeTab === 'teachers' && <>
+                <Button variant="secondary" onClick={() => { sounds.click(); setBulkOpen(true) }}>Bulk Import</Button>
+                <Button onClick={openAdd}>+ Add Teacher</Button>
+              </>}
+              {activeTab === 'substitutions' && <Button onClick={() => substitutionsRef.current?.openAdd()}>+ Add Substitution</Button>}
+            </div>
+          }
         />
       </div>
 
@@ -176,17 +166,6 @@ export default function ManageTeachers({ navigate, searchQuery }) {
         <Substitutions ref={substitutionsRef} embedded />
       ) : (
         <>
-      <div className="mb-4 flex gap-2">
-        <button
-          onClick={() => { setViewMode('list'); sounds.click() }}
-          className={`px-3 py-1.5 text-xs font-medium rounded-lg ${viewMode === 'list' ? 'bg-brand-600 text-white' : 'bg-white border border-slate-300 text-slate-600'}`}
-        >List View</button>
-        <button
-          onClick={() => { setViewMode('grid'); sounds.click() }}
-          className={`px-3 py-1.5 text-xs font-medium rounded-lg ${viewMode === 'grid' ? 'bg-brand-600 text-white' : 'bg-white border border-slate-300 text-slate-600'}`}
-        >Grid View</button>
-      </div>
-
       {filteredTeachers.length === 0 && searchQuery ? (
         <Card className="p-6">
           <EmptyState
@@ -204,7 +183,7 @@ export default function ManageTeachers({ navigate, searchQuery }) {
             action={<Button onClick={openAdd}>+ Add Teacher</Button>}
           />
         </Card>
-      ) : viewMode === 'list' ? (
+      ) : (
         <Card className="overflow-auto">
           <table className="w-full border-collapse">
             <thead>
@@ -244,66 +223,6 @@ export default function ManageTeachers({ navigate, searchQuery }) {
             </tbody>
           </table>
         </Card>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {filteredTeachers.map(teacher => (
-            <Card key={teacher.id} className="p-5">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center">
-                    <span className="text-sm font-bold text-brand-700">
-                      {teacher.name.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">{teacher.name}</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => openEdit(teacher)} className="text-slate-400 hover:text-brand-600">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
-                  <button onClick={() => handleDelete(teacher.id)} className="text-slate-400 hover:text-red-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-1">
-                {teacher.subjects?.length > 0 ? (
-                  getSubjectNames(teacher.subjects).map(name => (
-                    <Badge key={name} color="blue">{name}</Badge>
-                  ))
-                ) : (
-                  <span className="text-xs text-slate-400">No subjects assigned</span>
-                )}
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {teacher.classes?.length > 0 ? (
-                  getClassNames(teacher.classes).map(name => (
-                    <Badge key={name} color="green">{name}</Badge>
-                  ))
-                ) : (
-                  <span className="text-xs text-slate-400">No classes assigned</span>
-                )}
-              </div>
-              <p className="text-xs text-slate-400 mt-2">Max {teacher.maxPeriods || 6} periods/day</p>
-              {(teacher.maxGapsPerWeek != null && teacher.maxGapsPerWeek !== 5 || teacher.maxConsecutivePeriods != null && teacher.maxConsecutivePeriods !== 4 || teacher.maxTeachingDays != null && teacher.maxTeachingDays !== 5) && (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {teacher.maxGapsPerWeek != null && teacher.maxGapsPerWeek !== 5 && <Badge color="slate">Max gaps: {teacher.maxGapsPerWeek}/wk</Badge>}
-                  {teacher.maxConsecutivePeriods != null && teacher.maxConsecutivePeriods !== 4 && <Badge color="slate">Max consec: {teacher.maxConsecutivePeriods}</Badge>}
-                  {teacher.maxTeachingDays != null && teacher.maxTeachingDays !== 5 && <Badge color="slate">Max days: {teacher.maxTeachingDays}</Badge>}
-                </div>
-              )}
-              {getUnavailableCount(teacher.availability) > 0 && (
-                <p className="text-xs text-amber-600 mt-1">{getUnavailableCount(teacher.availability)} slot(s) blocked</p>
-              )}
-            </Card>
-          ))}
-        </div>
       )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Teacher' : 'Add Teacher'}>

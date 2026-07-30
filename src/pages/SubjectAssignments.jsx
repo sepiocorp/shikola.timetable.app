@@ -1,5 +1,5 @@
 import React, { useState, useMemo, forwardRef, useImperativeHandle } from 'react'
-import { useApp } from '../store/AppContext.jsx'
+import { useApp, getScheduleForClass } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
 import { Button, Input, Card, PageHeader, Modal, EmptyState, Badge, Tabs } from '../components/UI.jsx'
 
@@ -7,40 +7,54 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
   const { state, dispatch } = useApp()
   const [tab, setTab] = useState('byClass')
   const [selectedClassId, setSelectedClassId] = useState('')
+  const [selectedTeacherId, setSelectedTeacherId] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ classId: '', subjectId: '', periodsPerWeek: 1, teacherId: '' })
+  const [form, setForm] = useState({ classId: '', subjectId: '', periodsPerWeek: 1, maxPerDay: 0, teacherId: '', preferDoubleSessions: false })
 
   const assignmentsForClass = useMemo(() => {
     if (!selectedClassId) return []
     return state.subjectAssignments.filter(a => a.classId === selectedClassId)
   }, [state.subjectAssignments, selectedClassId])
 
+  const assignmentsForTeacher = useMemo(() => {
+    if (!selectedTeacherId) return []
+    return state.subjectAssignments.filter(a => a.teacherId === selectedTeacherId)
+  }, [state.subjectAssignments, selectedTeacherId])
+
   useImperativeHandle(ref, () => ({ openAdd }))
 
   const openAdd = () => {
     setEditing(null)
-    setForm({ classId: selectedClassId || '', subjectId: '', periodsPerWeek: 1, teacherId: '' })
+    const preTeacher = tab === 'byTeacher' ? selectedTeacherId : ''
+    setForm({ classId: selectedClassId || '', subjectId: '', periodsPerWeek: 1, maxPerDay: 0, teacherId: preTeacher, preferDoubleSessions: false })
     sounds.click()
     setModalOpen(true)
   }
 
   const openEdit = (assignment) => {
     setEditing(assignment)
-    setForm({ classId: assignment.classId, subjectId: assignment.subjectId, periodsPerWeek: assignment.periodsPerWeek, teacherId: assignment.teacherId || '' })
+    setForm({ classId: assignment.classId, subjectId: assignment.subjectId, periodsPerWeek: assignment.periodsPerWeek, maxPerDay: assignment.maxPerDay || 0, teacherId: assignment.teacherId || '', preferDoubleSessions: assignment.preferDoubleSessions || false })
     sounds.click()
     setModalOpen(true)
   }
 
   const handleSave = () => {
-    if (!form.classId || !form.subjectId) {
+    const periods = Number(form.periodsPerWeek)
+    const selectedTeacher = form.teacherId ? state.teachers.find(t => t.id === form.teacherId) : null
+    if (!form.classId || !form.subjectId || !Number.isInteger(periods) || periods < 1) {
       sounds.error()
       return
     }
+    if (selectedTeacher && !selectedTeacher.subjects?.includes(form.subjectId)) {
+      sounds.error()
+      return
+    }
+    const payload = { ...form, periodsPerWeek: periods }
     if (editing) {
-      dispatch({ type: 'UPDATE_SUBJECT_ASSIGNMENT', payload: { ...editing, ...form } })
+      dispatch({ type: 'UPDATE_SUBJECT_ASSIGNMENT', payload: { ...editing, ...payload } })
     } else {
-      dispatch({ type: 'ADD_SUBJECT_ASSIGNMENT', payload: form })
+      dispatch({ type: 'ADD_SUBJECT_ASSIGNMENT', payload })
     }
     sounds.add()
     setModalOpen(false)
@@ -66,33 +80,46 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
       .reduce((sum, a) => sum + (a.periodsPerWeek || 0), 0)
   }
 
-  const teachingPeriods = state.settings.periods.filter(p => !p.isBreak)
-  const totalSlotsPerClass = state.settings.days.length * teachingPeriods.length
+  const totalPeriodsForTeacher = (teacherId) => {
+    return state.subjectAssignments
+      .filter(a => a.teacherId === teacherId)
+      .reduce((sum, a) => sum + (a.periodsPerWeek || 0), 0)
+  }
+
+  const getClassesForTeacher = (teacherId) => {
+    const teacher = state.teachers.find(t => t.id === teacherId)
+    if (!teacher) return state.classes
+    if (!teacher.classes || teacher.classes.length === 0) return state.classes
+    return state.classes.filter(c => teacher.classes.includes(c.id))
+  }
+
+  const getSubjectsForTeacher = (teacherId) => {
+    const teacher = state.teachers.find(t => t.id === teacherId)
+    if (!teacher) return state.subjects
+    if (!teacher.subjects || teacher.subjects.length === 0) return state.subjects
+    return state.subjects.filter(s => teacher.subjects.includes(s.id))
+  }
+
+  const getTotalSlotsForClass = (classId) => {
+    const schedule = getScheduleForClass(state, classId)
+    return schedule.days.length * schedule.periods.filter(p => !p.isBreak).length
+  }
+
+  const totalSlotsPerClass = selectedClassId
+    ? getTotalSlotsForClass(selectedClassId)
+    : state.settings.days.length * state.settings.periods.filter(p => !p.isBreak).length
 
   const allAssignmentsByClass = useMemo(() => {
     return state.classes.map(cls => ({
       cls,
       assignments: state.subjectAssignments.filter(a => a.classId === cls.id),
       total: totalPeriodsForClass(cls.id),
+      slots: getTotalSlotsForClass(cls.id),
     }))
-  }, [state.classes, state.subjectAssignments])
+  }, [state.classes, state.subjectAssignments, state.sections, state.settings])
 
   return (
     <div className="p-4 md:p-8">
-      {!embedded ? (
-        <PageHeader
-          title="Subject Assignments"
-          subtitle="Assign subjects to classes with periods/week limits"
-          action={
-            <div className="flex gap-2">
-              <Button onClick={openAdd} disabled={state.classes.length === 0 || state.subjects.length === 0}>
-                + Add Assignment
-              </Button>
-            </div>
-          }
-        />
-      ) : null}
-
       {state.classes.length === 0 || state.subjects.length === 0 ? (
         <Card className="p-6">
           <EmptyState
@@ -113,10 +140,16 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
             <Tabs
               tabs={[
                 { id: 'byClass', label: 'By Class' },
+                { id: 'byTeacher', label: 'By Teacher' },
                 { id: 'overview', label: 'Overview (All Classes)' },
               ]}
               active={tab}
               onChange={(id) => { setTab(id); sounds.click() }}
+              action={
+                <Button onClick={openAdd} disabled={state.classes.length === 0 || state.subjects.length === 0}>
+                  + Add Assignment
+                </Button>
+              }
             />
           </div>
 
@@ -173,8 +206,10 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200">
                         <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Subject</th>
-                        <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Teacher</th>
+                        <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Assigned Teacher</th>
                         <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Periods/Week</th>
+                        <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Max/Day</th>
+                        <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Double Sessions</th>
                         <th className="text-right text-xs font-bold text-slate-600 px-4 py-3">Actions</th>
                       </tr>
                     </thead>
@@ -190,6 +225,110 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
                           <td className="px-4 py-3 text-sm text-slate-600">{getTeacherName(a.teacherId) || '— Auto —'}</td>
                           <td className="px-4 py-3 text-center">
                             <Badge color="blue">{a.periodsPerWeek}</Badge>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {a.maxPerDay ? <Badge color="purple">{a.maxPerDay}</Badge> : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {a.preferDoubleSessions ? <Badge color="green">Yes</Badge> : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button onClick={() => openEdit(a)} className="text-slate-400 hover:text-brand-600 mr-2">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+                            <button onClick={() => handleDelete(a.id)} className="text-slate-400 hover:text-red-500">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Card>
+              )}
+            </div>
+          ) : tab === 'byTeacher' ? (
+            <div className="space-y-4">
+              <Card className="p-4">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Select Teacher</label>
+                    <select
+                      value={selectedTeacherId}
+                      onChange={e => { setSelectedTeacherId(e.target.value); sounds.click() }}
+                      className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white min-w-[250px]"
+                    >
+                      <option value="">-- Select Teacher --</option>
+                      {state.teachers.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {selectedTeacherId && (
+                    <div className="ml-auto flex items-center gap-4">
+                      <div className="text-sm">
+                        <span className="text-slate-500">Total: </span>
+                        <span className="font-bold text-slate-800">{totalPeriodsForTeacher(selectedTeacherId)}</span>
+                        <span className="text-slate-400"> periods/wk</span>
+                      </div>
+                      <Button size="sm" onClick={openAdd}>+ Add Assignment</Button>
+                    </div>
+                  )}
+                </div>
+              </Card>
+
+              {!selectedTeacherId ? (
+                <Card className="p-6">
+                  <EmptyState
+                    icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+                    title="Select a teacher"
+                    subtitle="Choose a teacher to view and manage their class and period assignments"
+                  />
+                </Card>
+              ) : assignmentsForTeacher.length === 0 ? (
+                <Card className="p-6">
+                  <EmptyState
+                    icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+                    title="No assignments for this teacher"
+                    subtitle="Add assignments to specify which classes and subjects this teacher handles, and how many periods per week"
+                    action={<Button onClick={openAdd}>+ Add Assignment</Button>}
+                  />
+                </Card>
+              ) : (
+                <Card className="overflow-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Class</th>
+                        <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Subject</th>
+                        <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Periods/Week</th>
+                        <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Max/Day</th>
+                        <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Double Sessions</th>
+                        <th className="text-right text-xs font-bold text-slate-600 px-4 py-3">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {assignmentsForTeacher.map(a => (
+                        <tr key={a.id} className="border-b border-slate-100 hover:bg-slate-50">
+                          <td className="px-4 py-3 text-sm font-semibold text-slate-800">{getClassName(a.classId)}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-slate-800">
+                            <span className="inline-flex items-center gap-2">
+                              <span className="w-3 h-3 rounded" style={{ backgroundColor: getSubjectColor(a.subjectId) }} />
+                              {getSubjectName(a.subjectId)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <Badge color="blue">{a.periodsPerWeek}</Badge>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {a.maxPerDay ? <Badge color="purple">{a.maxPerDay}</Badge> : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {a.preferDoubleSessions ? <Badge color="green">Yes</Badge> : <span className="text-slate-300">—</span>}
                           </td>
                           <td className="px-4 py-3 text-right">
                             <button onClick={() => openEdit(a)} className="text-slate-400 hover:text-brand-600 mr-2">
@@ -228,7 +367,7 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
                   </tr>
                 </thead>
                 <tbody>
-                  {allAssignmentsByClass.map(({ cls, assignments, total }) => (
+                  {allAssignmentsByClass.map(({ cls, assignments, total, slots }) => (
                     <tr key={cls.id} className="border-b border-slate-100">
                       <td className="px-4 py-3 text-sm font-semibold text-slate-800 sticky left-0 bg-white">{cls.name}</td>
                       {state.subjects.map(s => {
@@ -240,10 +379,10 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
                         )
                       })}
                       <td className="px-4 py-3 text-center">
-                        <span className={`text-sm font-bold ${total > totalSlotsPerClass ? 'text-red-600' : 'text-slate-800'}`}>
+                        <span className={`text-sm font-bold ${total > slots ? 'text-red-600' : 'text-slate-800'}`}>
                           {total}
                         </span>
-                        <span className="text-xs text-slate-400"> / {totalSlotsPerClass}</span>
+                        <span className="text-xs text-slate-400"> / {slots}</span>
                       </td>
                     </tr>
                   ))}
@@ -264,7 +403,7 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
             >
               <option value="">-- Select Class --</option>
-              {state.classes.map(c => (
+              {(form.teacherId ? getClassesForTeacher(form.teacherId) : state.classes).map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
@@ -273,39 +412,68 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
             <label className="block text-sm font-medium text-slate-700 mb-1">Subject *</label>
             <select
               value={form.subjectId}
-              onChange={e => setForm({ ...form, subjectId: e.target.value, teacherId: '' })}
+              onChange={e => setForm({ ...form, subjectId: e.target.value, teacherId: form.teacherId })}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
             >
               <option value="">-- Select Subject --</option>
-              {state.subjects.map(s => (
+              {(form.teacherId ? getSubjectsForTeacher(form.teacherId) : state.subjects).map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
           </div>
-          <Input
-            label="Periods per Week *"
-            type="number"
-            value={form.periodsPerWeek}
-            onChange={e => setForm({ ...form, periodsPerWeek: Math.max(1, Number(e.target.value)) })}
-            min="1"
-            max={totalSlotsPerClass}
-          />
-          {form.subjectId && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Preferred Teacher (optional)</label>
-              <select
-                value={form.teacherId}
-                onChange={e => setForm({ ...form, teacherId: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
-              >
-                <option value="">— Auto-assign —</option>
-                {getTeachersForSubject(form.subjectId).map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-              <p className="text-xs text-slate-400 mt-1">Leave empty to let the generator pick any qualified teacher.</p>
-            </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Periods per Week *"
+              type="number"
+              value={form.periodsPerWeek}
+              onChange={e => setForm({ ...form, periodsPerWeek: Math.max(1, Number(e.target.value)) })}
+              min="1"
+              max={totalSlotsPerClass}
+            />
+            <Input
+              label="Max Periods per Day"
+              type="number"
+              value={form.maxPerDay}
+              onChange={e => setForm({ ...form, maxPerDay: Math.max(0, Number(e.target.value)) })}
+              min="0"
+              max={totalSlotsPerClass}
+            />
+          </div>
+          {form.maxPerDay > 0 && (
+            <p className="text-xs text-slate-400 -mt-2">Set to 0 for no daily limit. The generator will not schedule more than this many periods of this subject on any single day.</p>
           )}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Preferred Teacher (optional)</label>
+            <select
+              value={form.teacherId}
+              onChange={e => setForm({ ...form, teacherId: e.target.value, subjectId: '' })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+            >
+              <option value="">— Auto-assign —</option>
+              {(form.subjectId ? getTeachersForSubject(form.subjectId) : state.teachers.filter(t => t.subjects && t.subjects.length > 0)).map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-400 mt-1">Choose a teacher to require that teacher for every period of this subject in this class. Leave empty for automatic selection.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="preferDoubleSessions"
+              checked={form.preferDoubleSessions}
+              onChange={e => setForm({ ...form, preferDoubleSessions: e.target.checked })}
+              className="w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500"
+            />
+            <label htmlFor="preferDoubleSessions" className="text-sm text-slate-700">
+              Prefer Double Sessions
+            </label>
+          </div>
+          {form.preferDoubleSessions && (
+            <p className="text-xs text-slate-400 -mt-2">When enabled, the generator will try to schedule this subject in consecutive periods (double sessions) instead of single periods. This reduces the number of times the teacher needs to return to the same class.</p>
+          )}
+          <div className="bg-brand-50 border border-brand-200 rounded-lg p-3 text-xs text-brand-700">
+            These assignments are exact weekly requirements for this class. The generator will schedule only the periods listed here, respect the max-per-day limit, and will respect the selected class section's morning or afternoon timetable.
+          </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
             <Button onClick={handleSave}>{editing ? 'Update' : 'Add'}</Button>

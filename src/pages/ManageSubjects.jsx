@@ -13,17 +13,11 @@ const COLORS = [
   { name: 'Amber', value: '#f59e0b' },
   { name: 'Pink', value: '#ec4899' },
   { name: 'Teal', value: '#14b8a6' },
-  { name: 'Indigo', value: '#6366f1' },
 ]
 
 export default function ManageSubjects({ navigate, searchQuery }) {
   const { state, dispatch } = useApp()
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
+  const [loading, setLoading] = useState(false)
 
   const filteredSubjects = state.subjects.filter(subject =>
     subject.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -35,7 +29,6 @@ export default function ManageSubjects({ navigate, searchQuery }) {
   const [bulkOpen, setBulkOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({ name: '', departmentId: '', color: '#3b82f6', classId: '', isOptional: false, secondarySubjectId: '' })
-  const [viewMode, setViewMode] = useState('list')
   const [newSubjectId, setNewSubjectId] = useState(null)
   const [showAddSecondary, setShowAddSecondary] = useState(false)
   const [newSecondaryName, setNewSecondaryName] = useState('')
@@ -103,21 +96,6 @@ export default function ManageSubjects({ navigate, searchQuery }) {
 
   return (
     <div className="p-4 md:p-8">
-      <PageHeader
-        title={activeTab === 'relationships' ? 'Card Relationships' : activeTab === 'assignments' ? 'Subject Assignments' : 'Subjects'}
-        subtitle={activeTab === 'relationships' ? 'Define rules between subjects (sequencing, distribution, constraints)' : activeTab === 'assignments' ? 'Assign subjects to classes with periods/week limits' : `${state.subjects.length} subject(s) registered`}
-        action={
-          <div className="flex gap-2">
-            {activeTab === 'subjects' && <>
-              <Button variant="secondary" onClick={() => { sounds.click(); setBulkOpen(true) }}>Bulk Import</Button>
-              <Button onClick={openAdd}>+ Add Subject</Button>
-            </>}
-            {activeTab === 'relationships' && <Button onClick={() => relationshipsRef.current?.openAdd()}>+ Add Rule</Button>}
-            {activeTab === 'assignments' && <Button onClick={() => assignmentsRef.current?.openAdd()} disabled={state.classes.length === 0 || state.subjects.length === 0}>+ Add Assignment</Button>}
-          </div>
-        }
-      />
-
       <div className="mb-4">
         <Tabs
           tabs={[
@@ -127,6 +105,16 @@ export default function ManageSubjects({ navigate, searchQuery }) {
           ]}
           active={activeTab}
           onChange={(id) => { setActiveTab(id); sounds.click() }}
+          action={
+            <div className="flex gap-2 items-center">
+              {activeTab === 'subjects' && <>
+                <Button variant="secondary" onClick={() => { sounds.click(); setBulkOpen(true) }}>Bulk Import</Button>
+                <Button onClick={openAdd}>+ Add Subject</Button>
+              </>}
+              {activeTab === 'relationships' && <Button onClick={() => relationshipsRef.current?.openAdd()}>+ Add Rule</Button>}
+              {activeTab === 'assignments' && <Button onClick={() => assignmentsRef.current?.openAdd()} disabled={state.classes.length === 0 || state.subjects.length === 0}>+ Add Assignment</Button>}
+            </div>
+          }
         />
       </div>
 
@@ -136,17 +124,6 @@ export default function ManageSubjects({ navigate, searchQuery }) {
         <SubjectAssignments ref={assignmentsRef} embedded navigate={navigate} />
       ) : (
         <>
-      <div className="mb-4 flex gap-2">
-        <button
-          onClick={() => { setViewMode('list'); sounds.click() }}
-          className={`px-3 py-1.5 text-xs font-medium rounded-lg ${viewMode === 'list' ? 'bg-brand-600 text-white' : 'bg-white border border-slate-300 text-slate-600'}`}
-        >List View</button>
-        <button
-          onClick={() => { setViewMode('grid'); sounds.click() }}
-          className={`px-3 py-1.5 text-xs font-medium rounded-lg ${viewMode === 'grid' ? 'bg-brand-600 text-white' : 'bg-white border border-slate-300 text-slate-600'}`}
-        >Grid View</button>
-      </div>
-
       {filteredSubjects.length === 0 && searchQuery ? (
         <Card className="p-6">
           <EmptyState
@@ -164,7 +141,7 @@ export default function ManageSubjects({ navigate, searchQuery }) {
             action={<Button onClick={openAdd}>+ Add Subject</Button>}
           />
         </Card>
-      ) : viewMode === 'list' ? (
+      ) : (
         <Card className="overflow-auto">
           <table className="w-full border-collapse">
             <thead>
@@ -205,51 +182,6 @@ export default function ManageSubjects({ navigate, searchQuery }) {
             </tbody>
           </table>
         </Card>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredSubjects.map(subject => (
-            <Card key={subject.id} className="p-5">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: subject.color + '20', border: `2px solid ${subject.color}` }}>
-                    <span className="text-sm font-bold" style={{ color: subject.color }}>
-                      {subject.name.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">{subject.name}</p>
-                    {subject.departmentId && <p className="text-xs text-slate-500">Department: {state.departments.find(d => d.id === subject.departmentId)?.name || 'Unknown'}</p>}
-                    {subject.classId && (
-                      <p className="text-xs text-slate-500">Class: {state.classes.find(c => c.id === subject.classId)?.name || 'Unknown'}</p>
-                    )}
-                    {subject.isOptional && (
-                      <div className="flex items-center gap-1 mt-1">
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">Optional</span>
-                        {subject.secondarySubjectId && (
-                          <span className="text-[10px] text-slate-500">
-                            → {state.subjects.find(s => s.id === subject.secondarySubjectId)?.name || 'Unknown'}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => openEdit(subject)} className="text-slate-400 hover:text-brand-600">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
-                  <button onClick={() => handleDelete(subject.id)} className="text-slate-400 hover:text-red-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
       )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Subject' : 'Add Subject'}>

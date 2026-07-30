@@ -1,5 +1,4 @@
 import React, { useRef, useEffect, useState } from 'react'
-import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
 
 const menuItems = [
@@ -15,7 +14,6 @@ const menuItems = [
 ]
 
 export default function Sidebar({ current, navigate, collapsed, onToggleCollapse, mobileOpen, onCloseMobile }) {
-  const { state } = useApp()
   const [indicatorStyle, setIndicatorStyle] = useState({ top: 0, height: 0, opacity: 0 })
   const itemRefs = useRef({})
 
@@ -30,15 +28,10 @@ export default function Sidebar({ current, navigate, collapsed, onToggleCollapse
       setIndicatorStyle(prev => ({ ...prev, opacity: 0 }))
       return
     }
-
     const activeItem = itemRefs.current[current]
     if (activeItem) {
       const { offsetTop, offsetHeight } = activeItem
-      setIndicatorStyle({
-        top: offsetTop,
-        height: offsetHeight,
-        opacity: 1
-      })
+      setIndicatorStyle({ top: offsetTop, height: offsetHeight, opacity: 1 })
     }
   }, [current, collapsed])
 
@@ -57,45 +50,12 @@ export default function Sidebar({ current, navigate, collapsed, onToggleCollapse
         ${collapsed ? 'w-16' : 'w-64'}
         ${mobileOpen ? 'fixed md:relative inset-y-0 left-0 z-50 translate-x-0' : 'fixed md:relative -translate-x-full md:translate-x-0'}
       `}>
-        {/* Collapse toggle button (desktop only) */}
-        <div className={`relative ${collapsed ? 'p-2' : 'p-3'} hidden md:block`}>
-          <button
-            onClick={() => { sounds.click(); onToggleCollapse() }}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="absolute top-1/2 -translate-y-1/2 -right-3 w-6 h-6 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-600 hover:border-brand-300 flex items-center justify-center shadow-sm z-10 transition-colors"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d={collapsed ? 'M9 5l7 7-7 7' : 'M15 19l-7-7 7-7'} />
-            </svg>
-          </button>
-        </div>
-
-        {/* School Info */}
-        {state.school && !collapsed && (
-          <div className="px-5 py-4 bg-brand-50 border-b border-slate-200">
-            <div className="flex items-center gap-3">
-              {state.school.logo && (
-                <img src={state.school.logo} alt="School logo" className="w-8 h-8 rounded-lg object-contain bg-white border border-slate-200 flex-shrink-0" />
-              )}
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-brand-800 truncate">{state.school.name}</p>
-                <p className="text-xs text-slate-500 truncate">{state.school.academicYear}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-5 relative">
-          {/* Sliding indicator */}
+        <nav className="flex-1 overflow-y-auto pt-6 pb-4 px-3 space-y-1 text-sm relative">
           {!collapsed && (
             <div
-              className="absolute left-0 w-1 bg-brand-600 rounded-r-full transition-all duration-300 ease-out"
-              style={{
-                top: indicatorStyle.top,
-                height: indicatorStyle.height,
-                opacity: indicatorStyle.opacity
-              }}
+              className="absolute left-0 w-1 bg-slate-800 rounded-r-full transition-all duration-300 ease-out"
+              style={{ top: indicatorStyle.top, height: indicatorStyle.height, opacity: indicatorStyle.opacity }}
             />
           )}
           {menuItems.map(item => (
@@ -105,25 +65,25 @@ export default function Sidebar({ current, navigate, collapsed, onToggleCollapse
               onClick={() => handleNav(item.id)}
               title={collapsed ? item.label : undefined}
               className={`w-full flex items-center text-sm font-medium transition-colors ${
-                collapsed ? 'justify-center px-2 py-3.5' : 'gap-3.5 px-6 py-3.5'
+                collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.5'
               } ${
                 current === item.id
-                  ? 'bg-brand-50 text-brand-700'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  ? 'bg-slate-100 text-slate-900 rounded-lg font-semibold'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-lg'
               }`}
             >
               <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
               </svg>
-              {!collapsed && item.label}
+              {!collapsed && <span>{item.label}</span>}
             </button>
           ))}
         </nav>
 
         {/* Footer */}
         {!collapsed && (
-          <div className="p-3 border-t border-slate-100">
-            <p className="text-xs text-slate-400 text-center">Powered By Sepio Corp</p>
+          <div className="p-4 border-t border-slate-100">
+            <p className="text-xs text-slate-400 text-center">Powered By Shikola Inc</p>
           </div>
         )}
       </div>

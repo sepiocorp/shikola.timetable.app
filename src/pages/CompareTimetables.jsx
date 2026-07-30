@@ -1,16 +1,11 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useApp } from '../store/AppContext.jsx'
 import { sounds } from '../utils/sounds.js'
 import { Button, Card, PageHeader, Badge, EmptyState, SkeletonCard } from '../components/UI.jsx'
 
 export default function CompareTimetables({ embedded, onBack }) {
   const { state } = useApp()
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
+  const [loading, setLoading] = useState(false)
 
   const [savedSnapshot, setSavedSnapshot] = useState(null)
   const [compareResult, setCompareResult] = useState(null)

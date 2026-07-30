@@ -6,14 +6,12 @@ import { createBackup, getBackups, restoreBackup, deleteBackup, exportBackup, im
 
 export default function BackupRestore({ embedded }) {
   const { state, dispatch } = useApp()
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [backups, setBackups] = useState([])
   const [importStatus, setImportStatus] = useState(null)
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
     setBackups(getBackups())
-    return () => clearTimeout(timer)
   }, [])
 
   const refreshBackups = () => setBackups(getBackups())

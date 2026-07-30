@@ -143,9 +143,6 @@ function reducer(state, action) {
     case 'BULK_ADD_SUBJECTS':
       return { ...state, subjects: [...state.subjects, ...action.payload.map(s => ({ ...s, id: genId() }))] }
 
-    case 'BULK_ADD_PUPILS':
-      return { ...state, pupils: [...state.pupils, ...action.payload.map(p => ({ ...p, id: genId() }))] }
-
     case 'UPDATE_SUBJECT':
       return {
         ...state,
@@ -225,6 +222,9 @@ function reducer(state, action) {
 
     case 'SET_APPEARANCE':
       return { ...state, appearance: { ...state.appearance, ...action.payload } }
+
+    case 'SET_AUTO_UPDATE':
+      return { ...state, autoUpdate: { ...state.autoUpdate, ...action.payload } }
 
     case 'ADD_ACADEMIC_PERIOD':
       return { ...state, academicPeriods: [...state.academicPeriods, { ...action.payload, id: genId() }] }
@@ -347,6 +347,12 @@ function reducer(state, action) {
     case 'SET_APP_UNLOCKED':
       return { ...state, appLocked: false, lockReason: null }
 
+    case 'SET_LICENSE':
+      return { ...state, license: action.payload }
+
+    case 'CLEAR_LICENSE':
+      return { ...state, license: { key: null, valid: false, plan: null, expiresAt: null, schoolName: null, validatedAt: null } }
+
     case 'SET_TELEMETRY':
       return { ...state, telemetry: { ...state.telemetry, ...action.payload } }
 
@@ -452,18 +458,6 @@ function reducer(state, action) {
     case 'DELETE_BUILDING':
       return { ...state, buildings: state.buildings.filter(b => b.id !== action.payload) }
 
-    case 'ADD_PUPIL':
-      return { ...state, pupils: [...state.pupils, { ...action.payload, id: genId() }] }
-
-    case 'UPDATE_PUPIL':
-      return {
-        ...state,
-        pupils: state.pupils.map(s => s.id === action.payload.id ? { ...s, ...action.payload } : s),
-      }
-
-    case 'DELETE_PUPIL':
-      return { ...state, pupils: state.pupils.filter(s => s.id !== action.payload) }
-
     case 'SET_AUTO_RELAX':
       return { ...state, autoRelax: action.payload }
 
@@ -567,22 +561,31 @@ function reducer(state, action) {
 
 const AppContext = createContext(null)
 
+let cachedData = null
+
 export function AppProvider({ children }) {
-  const [state, setState] = useState(defaultData)
-  const [loading, setLoading] = useState(true)
+  const [state, setState] = useState(cachedData || defaultData)
+  const [loading, setLoading] = useState(!cachedData)
   const dispatchRef = useRef(null)
+  const stateRef = useRef(state)
   const storageWarningDismissedRef = useRef(false)
+
+  // Keep stateRef in sync with state
+  stateRef.current = state
 
   // Initialize dispatch ref
   dispatchRef.current = useCallback((action) => {
     setState(prevState => reducer(prevState, action))
   }, [])
 
-  // Load data on mount
+  // Load data on mount (skipped if cached data is available)
   useEffect(() => {
+    if (cachedData) return
+
     async function initialize() {
       try {
         const data = await loadData()
+        cachedData = data
         setState(data)
         setLoading(false)
 
@@ -602,7 +605,6 @@ export function AppProvider({ children }) {
             subjectCount: data.subjects.length,
             roomCount: data.rooms.length,
             timetableEntries: data.timetable.length,
-            pupilCount: data.pupils.length,
           }).catch(() => {})
         }
       } catch (e) {
@@ -644,6 +646,7 @@ export function AppProvider({ children }) {
         }
 
         await setData(state)
+        cachedData = state
         storageWarningDismissedRef.current = false
         if (state.storageWarning) {
           dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: null })
@@ -658,11 +661,56 @@ export function AppProvider({ children }) {
     saveData()
   }, [state, loading])
 
-  // Check app limits (entity count + storage size) — locks app if exceeded
+  // Check app limits (entity count + storage size) — locks/unlocks app as needed
   const ENTITY_LIMIT = 100
   const STORAGE_LIMIT_MB = 50
 
-  const checkAppLimits = useCallback((data) => {
+  const checkAppLimits = useCallback(async (data) => {
+    // Check if Shikola Management System is installed - if so, bypass limits
+    let shikolaManagementInstalled = false
+    if (window.electronAPI?.checkShikolaManagementInstalled) {
+      try {
+        const result = await window.electronAPI.checkShikolaManagementInstalled()
+        shikolaManagementInstalled = result.installed
+      } catch (err) {
+        console.error('[checkAppLimits] Failed to check Shikola Management System installation:', err)
+      }
+    }
+
+    if (shikolaManagementInstalled) {
+      // Unlock if Shikola Management System is installed
+      if (data.appLocked) {
+        dispatchRef.current({ type: 'SET_APP_UNLOCKED' })
+      }
+      return
+    }
+
+    // Check if a valid license key is cached — if so, bypass limits
+    if (window.electronAPI?.getCachedLicense) {
+      try {
+        const cachedLicense = await window.electronAPI.getCachedLicense()
+        if (cachedLicense.valid) {
+          // Update license state if not already set
+          if (!data.license?.valid) {
+            dispatchRef.current({ type: 'SET_LICENSE', payload: {
+              key: cachedLicense.key,
+              valid: true,
+              plan: cachedLicense.plan,
+              expiresAt: cachedLicense.expiresAt,
+              schoolName: cachedLicense.schoolName,
+              validatedAt: cachedLicense.validatedAt,
+            }})
+          }
+          if (data.appLocked) {
+            dispatchRef.current({ type: 'SET_APP_UNLOCKED' })
+          }
+          return
+        }
+      } catch (err) {
+        console.error('[checkAppLimits] Failed to check cached license:', err)
+      }
+    }
+
     const entityCount =
       (data.teachers?.length || 0) +
       (data.classes?.length || 0) +
@@ -673,6 +721,7 @@ export function AppProvider({ children }) {
     const sizeMB = dataSize / (1024 * 1024)
 
     if (entityCount > ENTITY_LIMIT) {
+      if (data.appLocked && data.lockReason?.type === 'entity_limit') return
       dispatchRef.current({
         type: 'SET_APP_LOCKED',
         payload: {
@@ -692,6 +741,7 @@ export function AppProvider({ children }) {
     }
 
     if (sizeMB > STORAGE_LIMIT_MB) {
+      if (data.appLocked && data.lockReason?.type === 'storage_limit') return
       dispatchRef.current({
         type: 'SET_APP_LOCKED',
         payload: {
@@ -709,19 +759,33 @@ export function AppProvider({ children }) {
       }
       return
     }
+
+    if (data.appLocked) {
+      dispatchRef.current({ type: 'SET_APP_UNLOCKED' })
+    }
   }, [])
 
-  // Re-check limits whenever entity counts change
+  // Re-check limits whenever data changes
   useEffect(() => {
     if (loading) return
     checkAppLimits(state)
-  }, [state.teachers, state.classes, state.subjects, state.rooms, loading, checkAppLimits])
+  }, [state, loading, checkAppLimits])
 
   const dispatch = dispatchRef.current
 
   const checkConflicts = useCallback((entry, existingTimetable = state.timetable) => {
     const conflicts = []
-    const period = state.settings.periods.find(p => p.id === entry.periodId)
+    const getPeriod = (item) => {
+      const schedule = getScheduleForClass(state, item.classId)
+      return schedule.periods.find(p => p.id === item.periodId)
+    }
+    const period = getPeriod(entry)
+    const getTimeKey = (item) => {
+      const itemPeriod = getPeriod(item)
+      return itemPeriod?.start && itemPeriod?.end
+        ? `${item.day}|${itemPeriod.start}|${itemPeriod.end}`
+        : `${item.day}-${item.periodId}`
+    }
     if (period?.isBreak) {
       conflicts.push({ type: 'break', message: 'Cannot schedule during a break period' })
       return conflicts
@@ -742,8 +806,9 @@ export function AppProvider({ children }) {
       }
     }
 
+    const entryTimeKey = getTimeKey(entry)
     for (const e of existingTimetable) {
-      if (e.day !== entry.day || e.periodId !== entry.periodId) continue
+      if (getTimeKey(e) !== entryTimeKey) continue
       if (entry.id && e.id === entry.id) continue
 
       if (entry.teacherId && e.teacherId === entry.teacherId) {
@@ -793,7 +858,7 @@ export function AppProvider({ children }) {
       }
     }
     return conflicts
-  }, [state.timetable, state.teachers, state.classes, state.rooms, state.settings.periods, state.teacherTimeOff])
+  }, [state, state.timetable, state.teachers, state.classes, state.rooms, state.settings.periods, state.sections, state.teacherTimeOff])
 
   const entityCount =
     (state.teachers?.length || 0) +
@@ -806,6 +871,46 @@ export function AppProvider({ children }) {
     dispatchRef.current({ type: 'SET_STORAGE_WARNING', payload: null })
   }, [])
 
+  const validateLicense = useCallback(async (licenseKey) => {
+    if (!window.electronAPI?.validateLicenseKey) {
+      return { valid: false, error: 'License validation is not available in this environment.' }
+    }
+    try {
+      const currentSchoolName = stateRef.current?.school?.name || ''
+      const result = await window.electronAPI.validateLicenseKey(licenseKey, currentSchoolName)
+      if (result.valid) {
+        dispatchRef.current({ type: 'SET_LICENSE', payload: {
+          key: result.key,
+          valid: true,
+          plan: result.plan,
+          expiresAt: result.expiresAt,
+          schoolName: result.schoolName,
+          validatedAt: result.validatedAt,
+        }})
+        // Auto-populate school name if not yet set
+        if (!currentSchoolName && result.schoolName) {
+          dispatchRef.current({ type: 'SET_SCHOOL', payload: { ...stateRef.current.school, name: result.schoolName } })
+        }
+        dispatchRef.current({ type: 'SET_APP_UNLOCKED' })
+      }
+      return result
+    } catch (err) {
+      console.error('[validateLicense] Failed:', err)
+      return { valid: false, error: 'Failed to validate license key. Please try again.' }
+    }
+  }, [])
+
+  const clearLicense = useCallback(async () => {
+    if (window.electronAPI?.clearLicense) {
+      try {
+        await window.electronAPI.clearLicense()
+      } catch (err) {
+        console.error('[clearLicense] Failed:', err)
+      }
+    }
+    dispatchRef.current({ type: 'CLEAR_LICENSE' })
+  }, [])
+
   const value = {
     state,
     dispatch,
@@ -815,6 +920,8 @@ export function AppProvider({ children }) {
     entityLimit: 100,
     storageLimitMB: 50,
     dismissStorageWarning,
+    validateLicense,
+    clearLicense,
   }
 
   if (loading) {

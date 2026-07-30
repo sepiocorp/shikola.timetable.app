@@ -6,12 +6,8 @@ import { generateTimetable, canGenerate } from '../utils/generate.js'
 
 export default function TimetableEditor({ navigate, searchQuery }) {
   const { state, dispatch, checkConflicts } = useApp()
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
   const [selectedClass, setSelectedClass] = useState('')
   const [cellModal, setCellModal] = useState(null)
   const [form, setForm] = useState({ teacherId: '', subjectId: '', roomId: '', secondaryClassId: '', secondarySubjectId: '', secondaryTeacherId: '', lessonLength: 1, lessonGroupId: '' })
@@ -244,37 +240,6 @@ export default function TimetableEditor({ navigate, searchQuery }) {
 
   return (
     <div className="p-4 md:p-8">
-      <PageHeader
-        title="Timetable Editor"
-        subtitle="Create and edit class timetables with automatic conflict detection"
-        action={
-          <div className="flex items-center gap-3">
-            <Select
-              value={selectedClass}
-              onChange={e => { setSelectedClass(e.target.value); sounds.click() }}
-              options={
-                <>
-                  <option value="">-- Select Class --</option>
-                  {state.classes.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </>
-              }
-              className="w-48"
-            />
-            {selectedClass && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleClearClass}
-              >
-                Clear Class
-              </Button>
-            )}
-          </div>
-        }
-      />
-
       <div className="mb-4">
         <Tabs
           tabs={[
@@ -283,6 +248,32 @@ export default function TimetableEditor({ navigate, searchQuery }) {
           ]}
           active={activeTab}
           onChange={(id) => { setActiveTab(id); sounds.click() }}
+          action={
+            <div className="flex items-center gap-3">
+              <Select
+                value={selectedClass}
+                onChange={e => { setSelectedClass(e.target.value); sounds.click() }}
+                options={
+                  <>
+                    <option value="">-- Select Class --</option>
+                    {state.classes.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </>
+                }
+                className="w-48"
+              />
+              {selectedClass && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleClearClass}
+                >
+                  Clear Class
+                </Button>
+              )}
+            </div>
+          }
         />
       </div>
 

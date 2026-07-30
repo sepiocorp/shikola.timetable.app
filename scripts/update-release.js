@@ -4,6 +4,7 @@
  * Update an existing GitHub release: upload assets and/or delete unwanted assets.
  *
  * Usage:
+ *   GITHUB_TOKEN=ghp_xxx node scripts/update-release.js --tag v1.3.0
  *   GITHUB_TOKEN=ghp_xxx node scripts/update-release.js --release-id 356278757
  */
 
@@ -16,9 +17,12 @@ const REPO = 'shikola.timetable.app'
 
 const args = process.argv.slice(2)
 let releaseId = null
+let tag = null
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--release-id' && args[i + 1]) {
     releaseId = args[i + 1]
+  } else if (args[i] === '--tag' && args[i + 1]) {
+    tag = args[i + 1]
   }
 }
 
@@ -27,8 +31,8 @@ if (!GITHUB_TOKEN) {
   console.error('ERROR: Set GITHUB_TOKEN env var.')
   process.exit(1)
 }
-if (!releaseId) {
-  console.error('ERROR: Provide --release-id')
+if (!releaseId && !tag) {
+  console.error('ERROR: Provide --tag <tag> or --release-id <id>')
   process.exit(1)
 }
 
@@ -109,6 +113,14 @@ function uploadAsset(uploadUrl, filePath, fileName) {
 }
 
 async function main() {
+  // 0. Resolve release ID from tag if needed
+  if (!releaseId && tag) {
+    console.log(`Looking up release for tag ${tag}...`)
+    const release = await api('GET', `/releases/tags/${tag}`)
+    releaseId = release.id
+    console.log(`Found release id: ${releaseId} (${release.html_url})`)
+  }
+
   // 1. Get existing assets
   const assets = await api('GET', `/releases/${releaseId}/assets`)
   console.log('Current assets:', assets.map(a => a.name).join(', ') || '(none)')
@@ -130,7 +142,7 @@ async function main() {
     process.exit(1)
   }
 
-  const assetExts = ['.exe', '.yml']
+  const assetExts = ['.exe', '.yml', '.blockmap']
   const files = fs.readdirSync(distDir).filter(f =>
     assetExts.some(ext => f.endsWith(ext))
   )
@@ -163,7 +175,8 @@ async function main() {
   // 4. Verify final assets
   const finalAssets = await api('GET', `/releases/${releaseId}/assets`)
   console.log('\nFinal assets:', finalAssets.map(a => a.name).join(', ') || '(none)')
-  console.log(`\nRelease updated: https://github.com/sepiocorp/${REPO}/releases/tag/v1.0.7`)
+  const releaseInfo = await api('GET', `/releases/${releaseId}`)
+  console.log(`\nRelease updated: ${releaseInfo.html_url}`)
 }
 
 main().catch((err) => {

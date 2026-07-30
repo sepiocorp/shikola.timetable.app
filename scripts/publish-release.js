@@ -18,9 +18,9 @@ const fs = require('fs')
 const path = require('path')
 const https = require('https')
 
-const OWNER = 'sepiocorp'
-const REPO = 'shikola.timetable.app'
-const API_BASE = 'api.github.com'
+const OWNER = process.env.GITHUB_OWNER || 'sepiocorp'
+const REPO = process.env.GITHUB_REPO || 'shikola.timetable.app'
+const API_BASE = process.env.GITHUB_API_BASE || 'api.github.com'
 
 // --- Parse CLI args ---
 const args = process.argv.slice(2)
@@ -172,9 +172,10 @@ async function main() {
       process.exit(1)
     }
 
-    const assetExts = ['.exe', '.nsis.7z', '.yml']
+    const assetExts = ['.exe', '.nsis.7z', '.yml', '.blockmap']
+    const skipFiles = ['builder-debug.yml', 'builder-effective-config.yaml']
     const files = fs.readdirSync(distDir).filter(f =>
-      assetExts.some(ext => f.endsWith(ext))
+      assetExts.some(ext => f.endsWith(ext)) && !skipFiles.includes(f)
     )
 
     if (files.length === 0) {

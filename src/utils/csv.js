@@ -26,14 +26,6 @@ const TEMPLATES = {
       ['Subject 2', 'SUB2', '#22c55e', 'yes', 'Class Name 1'],
     ],
   },
-  pupils: {
-    filename: 'pupils_template.csv',
-    headers: ['name', 'classId', 'email', 'phone', 'subjects'],
-    sampleRows: [
-      ['Pupil Name 1', 'Class Name 1', 'pupil1@school.com', '1234567890', 'Subject 1;Subject 2'],
-      ['Pupil Name 2', 'Class Name 2', 'pupil2@school.com', '0987654321', 'Subject 3;Subject 4'],
-    ],
-  },
   departments: {
     filename: 'departments_template.csv',
     headers: ['name', 'code', 'headTeacher'],

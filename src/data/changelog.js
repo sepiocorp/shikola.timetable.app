@@ -1,6 +1,61 @@
-export const APP_VERSION = '1.0.7'
+export const APP_VERSION = '1.3.0'
+export const APP_CODENAME = 'Aurora'
 
 export const CHANGELOG = [
+  {
+    version: '1.3.0',
+    codename: 'Aurora',
+    date: '2026-07-27',
+    title: 'What\'s New in v1.3.0',
+    changes: [
+      { type: 'feature', text: 'Offline license key activation — government schools in Lusaka, Zambia can unlock the app with embedded single-use license keys' },
+      { type: 'feature', text: 'Lock screen now includes a license key entry option to bypass entity and storage limits' },
+      { type: 'feature', text: 'License management in Settings — activate, view, and clear license keys with plan and expiry details' },
+      { type: 'feature', text: 'Max Periods per Day setting in Subject Assignments — control how many times a subject appears on any single day' },
+      { type: 'improvement', text: 'Timetable generator now enforces teacher-to-class assignments, ensuring teachers are only scheduled for classes they are assigned to' },
+      { type: 'improvement', text: 'Legal documents cleaned up — removed draft template warnings for finalized documents' },
+      { type: 'fix', text: 'Updated version badge in Documentation page to reflect current app version' },
+    ],
+  },
+  {
+    version: '1.2.0',
+    codename: 'Sunshine',
+    date: '2026-07-25',
+    title: 'What\'s New in v1.2.0',
+    changes: [
+      { type: 'feature', text: 'Automatic updates: new releases are now checked, downloaded, and optionally installed without manual interaction' },
+      { type: 'feature', text: 'Background install option installs downloaded updates automatically when you quit the app' },
+      { type: 'feature', text: 'Optional auto-restart shows a 60-second countdown before installing and relaunching' },
+      { type: 'feature', text: 'New Updates preferences in Settings → About control automatic checks, background install, and auto-restart' },
+      { type: 'improvement', text: 'Periodic update checks run automatically every 60 minutes while the app is open' },
+    ],
+  },
+  {
+    version: '1.1.0',
+    codename: 'Eclipse',
+    date: '2026-07-22',
+    title: 'What\'s New in v1.1.0',
+    changes: [
+      { type: 'feature', text: 'Complete UI redesign with modern styling, new fonts (Nunito, Varela Round, Inter), and smooth animations' },
+      { type: 'feature', text: 'Dark mode support with system-aware theming' },
+      { type: 'feature', text: 'Detects Shikola Management System installation — bypasses entity and storage limits when installed' },
+      { type: 'improvement', text: 'Lock screen now auto-unlocks when limits are no longer exceeded' },
+      { type: 'improvement', text: 'Redesigned sidebar, dashboard, and all management pages for a cleaner experience' },
+      { type: 'improvement', text: 'About page now displays the version codename alongside the version number' },
+      { type: 'fix', text: 'Removed Pupils page and all related code for a streamlined experience' },
+    ],
+  },
+  {
+    version: '1.0.8',
+    codename: 'Titan',
+    date: '2026-07-20',
+    title: 'What\'s New in v1.0.8',
+    changes: [
+      { type: 'improvement', text: 'Added in-memory data caching — subsequent app loads and page navigations are now instant with no loading states' },
+      { type: 'improvement', text: 'Removed artificial 2-second loading delays from all 15 pages for near-instant page transitions' },
+      { type: 'improvement', text: 'Splash screen now only shows on first launch; skipped on subsequent loads' },
+    ],
+  },
   {
     version: '1.0.7',
     codename: 'Titan',

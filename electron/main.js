@@ -2,6 +2,7 @@ const { app, BrowserWindow, Menu, ipcMain, crashReporter } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const telemetry = require('./telemetry')
+const { validateEmbeddedLicense, activatedKeys } = require('./licenses')
 
 const isDev = process.env.VITE_DEV === 'true'
 
@@ -10,11 +11,53 @@ let autoUpdater = null
 if (!isDev) {
   try {
     autoUpdater = require('electron-updater').autoUpdater
-    autoUpdater.autoDownload = true
-    autoUpdater.autoInstallOnAppQuit = true
   } catch (err) {
     console.error('[AutoUpdater] Failed to load:', err.message)
   }
+}
+
+// Persistent auto-update preferences shared between main and renderer
+const defaultUpdateConfig = {
+  enabled: true,
+  autoInstall: false,
+  installOnQuit: true,
+  checkIntervalMinutes: 60,
+}
+let updateConfig = { ...defaultUpdateConfig }
+let updateCheckInterval = null
+let autoInstallTimeout = null
+
+function getUpdateConfigPath() {
+  return path.join(app.getPath('userData'), 'auto-update-config.json')
+}
+
+function loadUpdateConfig() {
+  try {
+    const configPath = getUpdateConfigPath()
+    if (fs.existsSync(configPath)) {
+      const data = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      updateConfig = { ...defaultUpdateConfig, ...data }
+    }
+  } catch (err) {
+    console.error('[AutoUpdater] Failed to load config:', err.message)
+  }
+  return updateConfig
+}
+
+function saveUpdateConfig(config) {
+  try {
+    updateConfig = { ...updateConfig, ...config }
+    fs.writeFileSync(getUpdateConfigPath(), JSON.stringify(updateConfig, null, 2))
+    applyUpdateConfig()
+  } catch (err) {
+    console.error('[AutoUpdater] Failed to save config:', err.message)
+  }
+}
+
+function applyUpdateConfig() {
+  if (!autoUpdater) return
+  autoUpdater.autoDownload = updateConfig.enabled !== false
+  autoUpdater.autoInstallOnAppQuit = updateConfig.enabled !== false && updateConfig.installOnQuit !== false
 }
 
 // Track install/update info
@@ -275,9 +318,222 @@ ipcMain.handle('telemetry:getConsent', async () => {
   return null
 })
 
+// Detect if Shikola Management System is installed
+ipcMain.handle('app:checkShikolaManagementInstalled', async () => {
+  try {
+    const commonPaths = [
+      path.join('C:', 'Program Files', 'Shikola', 'Shikola Management System'),
+      path.join('C:', 'Program Files (x86)', 'Shikola', 'Shikola Management System'),
+      path.join('C:', 'Program Files', 'Shikola Management System'),
+      path.join('C:', 'Program Files (x86)', 'Shikola Management System'),
+      path.join(app.getPath('home'), 'AppData', 'Local', 'Programs', 'Shikola Management System'),
+      path.join(app.getPath('home'), 'AppData', 'Roaming', 'Shikola Management System'),
+    ]
+
+    for (const checkPath of commonPaths) {
+      if (fs.existsSync(checkPath)) {
+        return { installed: true, path: checkPath }
+      }
+    }
+
+    // Also check for executable in common locations
+    const exePaths = [
+      path.join('C:', 'Program Files', 'Shikola', 'Shikola Management System', 'Shikola Management System.exe'),
+      path.join('C:', 'Program Files (x86)', 'Shikola', 'Shikola Management System', 'Shikola Management System.exe'),
+    ]
+
+    for (const exePath of exePaths) {
+      if (fs.existsSync(exePath)) {
+        return { installed: true, path: path.dirname(exePath) }
+      }
+    }
+
+    return { installed: false }
+  } catch (err) {
+    console.error('[App] Failed to check Shikola Management System installation:', err.message)
+    return { installed: false }
+  }
+})
+
+// --- License key validation (offline, embedded keys) ---
+
+function getLicenseCachePath() {
+  return path.join(app.getPath('userData'), 'license-cache.json')
+}
+
+function readLicenseCache() {
+  try {
+    const cachePath = getLicenseCachePath()
+    if (fs.existsSync(cachePath)) {
+      return JSON.parse(fs.readFileSync(cachePath, 'utf-8'))
+    }
+  } catch (err) {
+    console.error('[License] Failed to read cache:', err.message)
+  }
+  return null
+}
+
+function writeLicenseCache(cache) {
+  try {
+    fs.writeFileSync(getLicenseCachePath(), JSON.stringify(cache, null, 2))
+  } catch (err) {
+    console.error('[License] Failed to write cache:', err.message)
+  }
+}
+
+function clearLicenseCache() {
+  try {
+    const cachePath = getLicenseCachePath()
+    if (fs.existsSync(cachePath)) {
+      fs.unlinkSync(cachePath)
+    }
+  } catch (err) {
+    console.error('[License] Failed to clear cache:', err.message)
+  }
+}
+
+// Fuzzy school name matching — allows minor variations like "Kabanana Primary"
+// vs "Kabanana Primary School" while still preventing cross-school misuse
+function normalizeSchoolName(name) {
+  if (!name) return ''
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/\bschool\b/g, '')
+    .replace(/\bprimary\b/g, '')
+    .replace(/\bsecondary\b/g, '')
+    .replace(/\bcombined\b/g, '')
+    .replace(/\bthe\b/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function levenshteinDistance(a, b) {
+  const m = a.length, n = b.length
+  if (m === 0) return n
+  if (n === 0) return m
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+  for (let i = 0; i <= m; i++) dp[i][0] = i
+  for (let j = 0; j <= n; j++) dp[0][j] = j
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost)
+    }
+  }
+  return dp[m][n]
+}
+
+function isSchoolNameSimilar(configured, license) {
+  if (!configured || !license) return true
+  // Exact match
+  if (configured === license) return true
+  // Normalized match (ignores "school", "primary", "secondary", punctuation, etc.)
+  const normConfigured = normalizeSchoolName(configured)
+  const normLicense = normalizeSchoolName(license)
+  if (normConfigured === normLicense) return true
+  // Substring containment (e.g., "kabanana" contains / is contained in "kabanana")
+  if (normConfigured && normLicense) {
+    if (normConfigured.includes(normLicense) || normLicense.includes(normConfigured)) return true
+  }
+  // Levenshtein similarity ratio >= 0.6 (allows typos and minor word order differences)
+  const maxLen = Math.max(normConfigured.length, normLicense.length)
+  if (maxLen === 0) return true
+  const distance = levenshteinDistance(normConfigured, normLicense)
+  const similarity = 1 - distance / maxLen
+  return similarity >= 0.6
+}
+
+ipcMain.handle('license:validate', async (_event, licenseKey, schoolName) => {
+  if (!licenseKey || typeof licenseKey !== 'string') {
+    return { valid: false, error: 'No license key provided.' }
+  }
+
+  const trimmedKey = licenseKey.trim()
+
+  // Validate against embedded license list
+  const result = validateEmbeddedLicense(trimmedKey)
+
+  if (result.valid) {
+    // Verify school name is similar — prevents School A from using School B's license
+    // while allowing minor variations (e.g., "Kabanana Primary" vs "Kabanana Primary School")
+    const configuredSchool = (schoolName || '').trim()
+    const licenseSchool = (result.schoolName || '').trim()
+    if (configuredSchool && licenseSchool && !isSchoolNameSimilar(configuredSchool.toLowerCase(), licenseSchool.toLowerCase())) {
+      // Don't mark as activated since validation failed at school-name check
+      activatedKeys.delete(trimmedKey)
+      return {
+        valid: false,
+        error: `This license key is for "${result.schoolName}", but your school is configured as "${schoolName.trim()}". A license key can only be used by the school it was issued for. Please update your school name in Settings → School → Info to match, or contact Sepio Corp if you believe this is an error.`,
+      }
+    }
+
+    const cacheEntry = {
+      key: result.key,
+      valid: true,
+      validatedAt: result.validatedAt,
+      plan: result.plan,
+      expiresAt: result.expiresAt,
+      schoolName: result.schoolName,
+    }
+    writeLicenseCache(cacheEntry)
+    console.log(`[License] Validated successfully: ${result.schoolName}`)
+    return { valid: true, ...cacheEntry, schoolNameMatched: !configuredSchool || isSchoolNameSimilar(configuredSchool.toLowerCase(), licenseSchool.toLowerCase()) }
+  }
+
+  // Invalid key — clear any stale cache
+  clearLicenseCache()
+  return { valid: false, error: result.error }
+})
+
+ipcMain.handle('license:getCached', async () => {
+  const cached = readLicenseCache()
+  if (!cached) return { valid: false }
+
+  // Re-mark this key as activated (it's already been used on this machine)
+  // This prevents it from being entered again on this same machine
+  activatedKeys.add(cached.key)
+
+  // Re-validate against embedded list to check expiry
+  const result = validateEmbeddedLicense(cached.key)
+  if (result.valid) {
+    return { valid: true, ...cached, plan: result.plan, expiresAt: result.expiresAt, schoolName: result.schoolName }
+  }
+
+  // If the key was blocked because it's already activated, that's expected for a cached key
+  // Check if the key exists in the embedded list and is not expired
+  const { LICENSES } = require('./licenses')
+  const entry = LICENSES.find(l => l.key === cached.key)
+  if (entry) {
+    const expiry = new Date(entry.expiresAt)
+    if (expiry >= new Date()) {
+      // Key is still valid — return cached info
+      return { valid: true, ...cached, plan: entry.plan, expiresAt: entry.expiresAt, schoolName: entry.schoolName }
+    }
+  }
+
+  // Cached key is no longer valid (expired or removed)
+  clearLicenseCache()
+  return { valid: false }
+})
+
+ipcMain.handle('license:clear', async () => {
+  const cached = readLicenseCache()
+  if (cached?.key) {
+    activatedKeys.delete(cached.key)
+  }
+  clearLicenseCache()
+  return { success: true }
+})
+
 // --- Auto-updater IPC handlers ---
 ipcMain.handle('update:installNow', () => {
   if (autoUpdater) {
+    if (autoInstallTimeout) {
+      clearTimeout(autoInstallTimeout)
+      autoInstallTimeout = null
+    }
     autoUpdater.quitAndInstall(false, true)
   }
 })
@@ -295,8 +551,20 @@ ipcMain.handle('update:downloadUpdate', async () => {
 
 ipcMain.handle('update:installOnQuit', () => {
   if (autoUpdater) {
+    if (autoInstallTimeout) {
+      clearTimeout(autoInstallTimeout)
+      autoInstallTimeout = null
+    }
     autoUpdater.autoInstallOnAppQuit = true
   }
+})
+
+ipcMain.handle('update:setConfig', (_event, config) => {
+  saveUpdateConfig(config)
+})
+
+ipcMain.handle('update:getConfig', async () => {
+  return loadUpdateConfig()
 })
 
 // --- Auto-updater event forwarding to renderer ---
@@ -323,6 +591,22 @@ function setupAutoUpdater() {
 
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[AutoUpdater] Update downloaded:', info.version)
+    if (updateConfig.autoInstall) {
+      console.log('[AutoUpdater] Auto-install enabled; will restart in 60 seconds')
+      BrowserWindow.getAllWindows().forEach((win) => {
+        win.webContents.send('update:auto-install-pending', {
+          version: info.version,
+          releaseNotes: info.releaseNotes,
+          secondsRemaining: 60,
+        })
+      })
+      if (autoInstallTimeout) clearTimeout(autoInstallTimeout)
+      autoInstallTimeout = setTimeout(() => {
+        console.log('[AutoUpdater] Auto-installing update now')
+        autoUpdater.quitAndInstall(false, true)
+      }, 60000)
+      return
+    }
     BrowserWindow.getAllWindows().forEach((win) => {
       win.webContents.send('update:downloaded', {
         version: info.version,
@@ -354,15 +638,31 @@ app.whenReady().then(() => {
   buildMenu()
   createWindow()
 
-  // Start auto-update check after a short delay (production only)
+  // Start auto-update checks (production only)
   if (autoUpdater) {
+    loadUpdateConfig()
+    applyUpdateConfig()
     setupAutoUpdater()
-    setTimeout(() => {
+
+    const scheduleUpdateCheck = () => {
+      if (!updateConfig.enabled) {
+        console.log('[AutoUpdater] Auto-update disabled; skipping scheduled check')
+        return
+      }
       console.log('[AutoUpdater] Checking for updates...')
       autoUpdater.checkForUpdates().catch((err) => {
         console.error('[AutoUpdater] Check failed:', err.message)
       })
-    }, 5000)
+    }
+
+    // Initial check shortly after startup
+    setTimeout(scheduleUpdateCheck, 5000)
+
+    // Recurring background checks while app is running
+    if (updateCheckInterval) clearInterval(updateCheckInterval)
+    updateCheckInterval = setInterval(() => {
+      scheduleUpdateCheck()
+    }, Math.max(15, updateConfig.checkIntervalMinutes || 60) * 60 * 1000)
   }
 
   app.on('activate', () => {

@@ -10,15 +10,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   getInstallInfo: () => ipcRenderer.invoke('app:getInstallInfo'),
   checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
+  checkShikolaManagementInstalled: () => ipcRenderer.invoke('app:checkShikolaManagementInstalled'),
+
+  // License key APIs
+  validateLicenseKey: (key, schoolName) => ipcRenderer.invoke('license:validate', key, schoolName),
+  getCachedLicense: () => ipcRenderer.invoke('license:getCached'),
+  clearLicense: () => ipcRenderer.invoke('license:clear'),
 
   // Auto-update APIs
   updater: {
     installNow: () => ipcRenderer.invoke('update:installNow'),
     installOnQuit: () => ipcRenderer.invoke('update:installOnQuit'),
     downloadUpdate: () => ipcRenderer.invoke('update:downloadUpdate'),
+    getConfig: () => ipcRenderer.invoke('update:getConfig'),
+    setConfig: (config) => ipcRenderer.invoke('update:setConfig', config),
     onAvailable: (cb) => ipcRenderer.on('update:available', (_e, info) => cb(info)),
     onNotAvailable: (cb) => ipcRenderer.on('update:not-available', () => cb()),
     onDownloaded: (cb) => ipcRenderer.on('update:downloaded', (_e, info) => cb(info)),
+    onAutoInstallPending: (cb) => ipcRenderer.on('update:auto-install-pending', (_e, info) => cb(info)),
     onProgress: (cb) => ipcRenderer.on('update:progress', (_e, progress) => cb(progress)),
     onError: (cb) => ipcRenderer.on('update:error', (_e, err) => cb(err)),
   },

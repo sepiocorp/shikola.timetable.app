@@ -60,7 +60,6 @@ const defaultData = {
   lunchConstraint: { enabled: false, afterPeriodId: null, beforePeriodId: null },
   educationBlocks: [],
   buildings: [],
-  pupils: [],
   autoRelax: false,
   language: 'en',
   backupHistory: [],
@@ -69,12 +68,26 @@ const defaultData = {
   storageWarning: null,
   appLocked: false,
   lockReason: null,
+  license: {
+    key: null,
+    valid: false,
+    plan: null,
+    expiresAt: null,
+    schoolName: null,
+    validatedAt: null,
+  },
   telemetry: {
     registered: true,
     analyticsEnabled: true,
     crashReportingEnabled: true,
     registrationConsent: true,
     consentTimestamp: null,
+  },
+  autoUpdate: {
+    enabled: true,
+    autoInstall: false,
+    installOnQuit: true,
+    checkIntervalMinutes: 60,
   },
 }
 

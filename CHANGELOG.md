@@ -6,6 +6,75 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ---
 
+## [1.4.0] — Borealis — 2026-07-30
+
+### Added
+- Double Sessions preference in Subject Assignments — teachers can now be scheduled in consecutive periods (double sessions) instead of single periods
+- "Prefer Double Sessions" checkbox in subject assignment modal to enable consecutive period scheduling
+- Double Sessions column in Subject Assignments tables (By Class and By Teacher views) to show which assignments prefer double sessions
+- Smart generator now prioritizes consecutive periods when double sessions are enabled, reducing the number of times teachers need to return to the same class
+
+### Changed
+- Timetable generator scoring algorithm enhanced to favor consecutive periods for assignments marked with "Prefer Double Sessions"
+
+---
+
+## [1.3.0] — Aurora — 2026-07-27
+
+### Added
+- Offline license key activation — government schools in Lusaka, Zambia can unlock the app with embedded single-use license keys
+- Lock screen now includes a license key entry option to bypass entity and storage limits
+- License management in Settings — activate, view, and clear license keys with plan and expiry details
+- Max Periods per Day setting in Subject Assignments — control how many times a subject appears on any single day
+
+### Changed
+- Timetable generator now enforces teacher-to-class assignments, ensuring teachers are only scheduled for classes they are assigned to
+- Legal documents cleaned up — removed draft template warnings for finalized documents
+
+### Fixed
+- Updated version badge in Documentation page to reflect current app version
+
+---
+
+## [1.2.0] — Sunshine — 2026-07-25
+
+### Added
+- Automatic updates: new releases are now checked, downloaded, and optionally installed without manual interaction
+- Background install option installs downloaded updates automatically when you quit the app
+- Optional auto-restart with a 60-second countdown before installing and relaunching
+- New Updates preferences in Settings → About to control automatic checks, background install, and auto-restart
+
+### Changed
+- Periodic update checks now run automatically every 60 minutes while the app is open
+
+---
+
+## [1.1.0] — Eclipse — 2026-07-22
+
+### Added
+- Complete UI redesign with modern styling, new fonts (Nunito, Varela Round, Inter), and smooth animations
+- Dark mode support with system-aware theming
+- Detects Shikola Management System installation — bypasses entity and storage limits when installed
+
+### Changed
+- Lock screen now auto-unlocks when limits are no longer exceeded
+- Redesigned sidebar, dashboard, and all management pages for a cleaner experience
+- About page now displays the version codename alongside the version number
+
+### Removed
+- Pupils page and all related code for a streamlined experience
+
+---
+
+## [1.0.8] — Titan — 2026-07-20
+
+### Changed
+- Added in-memory data caching — subsequent app loads and page navigations are now instant with no loading states
+- Removed artificial 2-second loading delays from all 15 pages for near-instant page transitions
+- Splash screen now only shows on first launch; skipped on subsequent loads
+
+---
+
 ## [1.0.7] — Titan — 2026-07-19
 
 ### Added
