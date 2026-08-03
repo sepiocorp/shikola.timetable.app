@@ -5,14 +5,15 @@ const { app } = require('electron')
 // ====================================================================
 // TELEMETRY CONFIGURATION
 // --------------------------------------------------------------------
-// Data is sent via Formspree, which forwards it to sepiopixel@gmail.com
-// Formspree project ID: 3031226910165172087
+// Sensitive credentials (Formspree ID, reporting email) are loaded from
+// secrets.js (gitignored — not tracked in version control).
+// To set up: copy secrets.example.js to secrets.js and fill in real values.
 // ====================================================================
 
-const FORMSPREE_PROJECT_ID = '3031226910165172087'
+const { SECRETS } = require('./secrets')
 const TELEMETRY_HOST = 'formspree.io'
-const TELEMETRY_PATH = `/f/${FORMSPREE_PROJECT_ID}`
-const REPORTING_EMAIL = 'mmushibi@gmail.com'
+const TELEMETRY_PATH = `/f/${SECRETS.FORMSPREE_PROJECT_ID}`
+const REPORTING_EMAIL = SECRETS.REPORTING_EMAIL
 
 const APP_VERSION = app.getVersion()
 const APP_NAME = 'Shikola Timetable Creator'

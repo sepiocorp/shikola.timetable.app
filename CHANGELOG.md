@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ---
 
+## [1.4.2] — Borealis — 2026-08-03
+
+### Fixed
+- Bug fixes and improvements
+
+---
+
 ## [1.4.0] — Borealis — 2026-07-30
 
 ### Added
