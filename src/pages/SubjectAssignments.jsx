@@ -10,7 +10,7 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
   const [selectedTeacherId, setSelectedTeacherId] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ classId: '', subjectId: '', periodsPerWeek: 1, maxPerDay: 0, teacherId: '', preferDoubleSessions: false })
+  const [form, setForm] = useState({ classId: '', subjectId: '', periodsPerWeek: 1, maxPerDay: 0, teacherId: '', sessionLength: 1 })
 
   const assignmentsForClass = useMemo(() => {
     if (!selectedClassId) return []
@@ -27,20 +27,21 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
   const openAdd = () => {
     setEditing(null)
     const preTeacher = tab === 'byTeacher' ? selectedTeacherId : ''
-    setForm({ classId: selectedClassId || '', subjectId: '', periodsPerWeek: 1, maxPerDay: 0, teacherId: preTeacher, preferDoubleSessions: false })
+    setForm({ classId: selectedClassId || '', subjectId: '', periodsPerWeek: 1, maxPerDay: 0, teacherId: preTeacher, sessionLength: 1 })
     sounds.click()
     setModalOpen(true)
   }
 
   const openEdit = (assignment) => {
     setEditing(assignment)
-    setForm({ classId: assignment.classId, subjectId: assignment.subjectId, periodsPerWeek: assignment.periodsPerWeek, maxPerDay: assignment.maxPerDay || 0, teacherId: assignment.teacherId || '', preferDoubleSessions: assignment.preferDoubleSessions || false })
+    setForm({ classId: assignment.classId, subjectId: assignment.subjectId, periodsPerWeek: assignment.periodsPerWeek, maxPerDay: assignment.maxPerDay || 0, teacherId: assignment.teacherId || '', sessionLength: assignment.sessionLength || (assignment.preferDoubleSessions ? 2 : 1) })
     sounds.click()
     setModalOpen(true)
   }
 
   const handleSave = () => {
     const periods = Number(form.periodsPerWeek)
+    const sessionLength = Number(form.sessionLength) || 1
     const selectedTeacher = form.teacherId ? state.teachers.find(t => t.id === form.teacherId) : null
     if (!form.classId || !form.subjectId || !Number.isInteger(periods) || periods < 1) {
       sounds.error()
@@ -50,7 +51,11 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
       sounds.error()
       return
     }
-    const payload = { ...form, periodsPerWeek: periods }
+    if (sessionLength > 1 && periods % sessionLength !== 0) {
+      sounds.error()
+      return
+    }
+    const payload = { ...form, periodsPerWeek: periods, sessionLength }
     if (editing) {
       dispatch({ type: 'UPDATE_SUBJECT_ASSIGNMENT', payload: { ...editing, ...payload } })
     } else {
@@ -209,7 +214,7 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
                         <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Assigned Teacher</th>
                         <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Periods/Week</th>
                         <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Max/Day</th>
-                        <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Double Sessions</th>
+                        <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Session</th>
                         <th className="text-right text-xs font-bold text-slate-600 px-4 py-3">Actions</th>
                       </tr>
                     </thead>
@@ -230,7 +235,7 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
                             {a.maxPerDay ? <Badge color="purple">{a.maxPerDay}</Badge> : <span className="text-slate-300">—</span>}
                           </td>
                           <td className="px-4 py-3 text-center">
-                            {a.preferDoubleSessions ? <Badge color="green">Yes</Badge> : <span className="text-slate-300">—</span>}
+                            <Badge color={(a.sessionLength || (a.preferDoubleSessions ? 2 : 1)) > 1 ? 'green' : 'slate'}>{a.sessionLength || (a.preferDoubleSessions ? 2 : 1)}×</Badge>
                           </td>
                           <td className="px-4 py-3 text-right">
                             <button onClick={() => openEdit(a)} className="text-slate-400 hover:text-brand-600 mr-2">
@@ -307,7 +312,7 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
                         <th className="text-left text-xs font-bold text-slate-600 px-4 py-3">Subject</th>
                         <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Periods/Week</th>
                         <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Max/Day</th>
-                        <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Double Sessions</th>
+                        <th className="text-center text-xs font-bold text-slate-600 px-4 py-3">Session</th>
                         <th className="text-right text-xs font-bold text-slate-600 px-4 py-3">Actions</th>
                       </tr>
                     </thead>
@@ -328,7 +333,7 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
                             {a.maxPerDay ? <Badge color="purple">{a.maxPerDay}</Badge> : <span className="text-slate-300">—</span>}
                           </td>
                           <td className="px-4 py-3 text-center">
-                            {a.preferDoubleSessions ? <Badge color="green">Yes</Badge> : <span className="text-slate-300">—</span>}
+                            <Badge color={(a.sessionLength || (a.preferDoubleSessions ? 2 : 1)) > 1 ? 'green' : 'slate'}>{a.sessionLength || (a.preferDoubleSessions ? 2 : 1)}×</Badge>
                           </td>
                           <td className="px-4 py-3 text-right">
                             <button onClick={() => openEdit(a)} className="text-slate-400 hover:text-brand-600 mr-2">
@@ -456,21 +461,18 @@ const SubjectAssignments = forwardRef(function SubjectAssignments({ embedded, on
             </select>
             <p className="text-xs text-slate-400 mt-1">Choose a teacher to require that teacher for every period of this subject in this class. Leave empty for automatic selection.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="preferDoubleSessions"
-              checked={form.preferDoubleSessions}
-              onChange={e => setForm({ ...form, preferDoubleSessions: e.target.checked })}
-              className="w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500"
-            />
-            <label htmlFor="preferDoubleSessions" className="text-sm text-slate-700">
-              Prefer Double Sessions
-            </label>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Session Type</label>
+            <select
+              value={form.sessionLength}
+              onChange={e => setForm({ ...form, sessionLength: Math.max(1, Number(e.target.value)) })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+            >
+              <option value={1}>Single session (1 period)</option>
+              <option value={2}>Double session (2 periods)</option>
+            </select>
+            <p className="text-xs text-slate-400 mt-1">Double sessions treat the periods per week as total periods. For example, 6 periods as double sessions means 3 double visits.</p>
           </div>
-          {form.preferDoubleSessions && (
-            <p className="text-xs text-slate-400 -mt-2">When enabled, the generator will try to schedule this subject in consecutive periods (double sessions) instead of single periods. This reduces the number of times the teacher needs to return to the same class.</p>
-          )}
           <div className="bg-brand-50 border border-brand-200 rounded-lg p-3 text-xs text-brand-700">
             These assignments are exact weekly requirements for this class. The generator will schedule only the periods listed here, respect the max-per-day limit, and will respect the selected class section's morning or afternoon timetable.
           </div>

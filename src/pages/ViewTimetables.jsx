@@ -57,13 +57,13 @@ export default function ViewTimetables({ navigate, searchQuery }) {
             const cls = state.classes.find(c => c.id === entry.classId)
             const subject = state.subjects.find(s => s.id === entry.subjectId)
             const room = state.rooms.find(r => r.id === entry.roomId)
-            if (subject) parts.push(subject.name)
+            if (subject) parts.push(subject.name + (entry.lessonLength > 1 ? ' (' + entry.lessonLength + 'x)' : ''))
             if (cls) parts.push(cls.name)
             if (room) parts.push(room.name)
           } else if (entry.secondaryTeacherId === teacherId) {
             const secClass = state.classes.find(c => c.id === entry.secondaryClassId)
             const secSubject = state.subjects.find(s => s.id === entry.secondarySubjectId)
-            if (secSubject) parts.push(secSubject.name)
+            if (secSubject) parts.push(secSubject.name + (entry.lessonLength > 1 ? ' (' + entry.lessonLength + 'x)' : ''))
             if (secClass) parts.push(secClass.name)
             parts.push('(Secondary)')
           }
@@ -75,7 +75,7 @@ export default function ViewTimetables({ navigate, searchQuery }) {
           const subject = state.subjects.find(s => s.id === entry.subjectId)
           const room = state.rooms.find(r => r.id === entry.roomId)
           const parts = []
-          if (subject) parts.push(subject.name)
+          if (subject) parts.push(subject.name + (entry.lessonLength > 1 ? ' (' + entry.lessonLength + 'x)' : ''))
           if (teacher) parts.push(teacher.name)
           if (room) parts.push(room.name)
           if (entry.secondaryClassId) {
@@ -846,7 +846,7 @@ function MasterTimetableView({ state, masterData, navigate, sectionFilter }) {
                       <div className="space-y-1">
                         {entries.map(e => (
                           <div key={e.id} className="text-[10px] bg-brand-50 rounded px-1 py-0.5">
-                            <p className="text-sm font-bold text-slate-800">{e.subjectName}</p>
+                            <p className="text-sm font-bold text-slate-800">{e.subjectName}{e.lessonLength > 1 ? ' (' + e.lessonLength + 'x)' : ''}</p>
                             <p className="text-brand-800">{e.className}</p>
                             <p className="text-slate-400">{e.teacherName}</p>
                             {e.secondaryClassName && (
@@ -937,7 +937,7 @@ function DepartmentTimetableView({ state, deptMasterData, navigate, deptName }) 
                       <div className="space-y-1">
                         {entries.map(e => (
                           <div key={e.id} className="text-[10px] bg-brand-50 rounded px-1 py-0.5">
-                            <p className="text-sm font-bold text-slate-800">{e.subjectName}</p>
+                            <p className="text-sm font-bold text-slate-800">{e.subjectName}{e.lessonLength > 1 ? ' (' + e.lessonLength + 'x)' : ''}</p>
                             <p className="text-brand-800">{e.teacherName}</p>
                             <p className="text-slate-600">{e.className}</p>
                             <p className="text-slate-400">{e.roomName}</p>
